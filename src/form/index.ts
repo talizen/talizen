@@ -76,3 +76,4 @@ function requireProjectId(options?: TalizenRequestOptions): string {
 
   throw new Error("Talizen projectId is required. Pass options.projectId or call setTalizenConfig({ projectId }).")
 }
+
