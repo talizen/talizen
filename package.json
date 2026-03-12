@@ -1,5 +1,5 @@
 {
-  "name": "talizen",
+  "name": "@talizen/talizen",
   "version": "0.1.0",
   "description": "Talizen frontend SDK types for cms, form and core.",
   "type": "module",
