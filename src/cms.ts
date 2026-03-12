@@ -1,4 +1,4 @@
-import { requestJson, type TalizenRequestOptions } from "../core/index.js"
+import { requestJson, type TalizenRequestOptions } from "./core.js"
 
 export interface BaseCmsItem {
   readonly __cmsKey: string

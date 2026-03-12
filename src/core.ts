@@ -29,7 +29,6 @@ export interface ImgItem {
 
 export type Image = ImgItem[] | ImgItem
 
-
 export interface TalizenClientConfig {
   baseUrl?: string
   headers?: HeadersInit
@@ -55,7 +54,9 @@ export function getTalizenConfig(): TalizenClientConfig {
   }
 }
 
-export function resolveTalizenConfig(config?: TalizenRequestOptions): Required<Pick<TalizenClientConfig, "baseUrl" | "fetch">> & TalizenRequestOptions {
+export function resolveTalizenConfig(
+  config?: TalizenRequestOptions,
+): Required<Pick<TalizenClientConfig, "baseUrl" | "fetch">> & TalizenRequestOptions {
   const merged = {
     ...globalTalizenConfig,
     ...config,
@@ -72,18 +73,21 @@ export function resolveTalizenConfig(config?: TalizenRequestOptions): Required<P
 }
 
 function joinUrl(baseUrl: string, path: string): string {
-  const base = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-  const subPath = path.startsWith('/') ? path.slice(1) : path;
-  return `${base}/${subPath}`;
+  const base = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl
+  const subPath = path.startsWith("/") ? path.slice(1) : path
+  return `${base}/${subPath}`
 }
 
 function buildTalizenUrl(path: string, config?: TalizenRequestOptions): string {
   const resolved = resolveTalizenConfig(config)
-  // new URL is not used because baseUrl may not include protocols and domain names, e.g. /api
   return joinUrl(resolved.baseUrl, path)
 }
 
-export async function requestJson<T>(path: string, init?: RequestInit, config?: TalizenRequestOptions): Promise<T> {
+export async function requestJson<T>(
+  path: string,
+  init?: RequestInit,
+  config?: TalizenRequestOptions,
+): Promise<T> {
   const resolved = resolveTalizenConfig(config)
   const headers = new Headers(resolved.headers ?? {})
 
