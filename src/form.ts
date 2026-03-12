@@ -1,6 +1,4 @@
-import { requestJson, type TalizenRequestOptions } from "../core/index.js"
-
-
+import { requestJson, type TalizenRequestOptions } from "./core.js"
 
 export interface FormRecord {
   readonly __formKey?: string
@@ -12,7 +10,6 @@ export async function submitForm<T extends FormRecord>(
   payload: T,
   options?: TalizenRequestOptions,
 ): Promise<"ok"> {
-
   return requestJson<"ok">(
     `/form/${keyOrToken}/submit`,
     {
@@ -22,4 +19,3 @@ export async function submitForm<T extends FormRecord>(
     options,
   )
 }
-

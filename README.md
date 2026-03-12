@@ -1,26 +1,37 @@
 # talizen
 
-Talizen 前端 SDK 类型仓库，统一提供：
+Talizen's frontend SDK package. It provides a small runtime client and shared types for:
 
 - `talizen/core`
 - `talizen/cms`
 - `talizen/form`
 
-这个仓库的目标是把 Talizen 平台前端会直接使用的类型和最小运行时请求封装整理成一个可以独立发布到 GitHub 和 npm 的包。
+The package is designed to hold the platform-level APIs that frontend projects use directly, while project-specific CMS and form schema types can still be generated separately per project.
 
-## 安装
+## Install
 
 ```bash
 npm install talizen
 ```
 
-## 使用
+## Usage
+
+### Configure the client
 
 ```ts
 import { setTalizenConfig } from "talizen/core"
-import { ListContent, type BaseCmsItem } from "talizen/cms"
 
-interface Blogs extends BaseCmsItem {
+setTalizenConfig({
+  baseUrl: "https://www.talizen.com",
+})
+```
+
+### List CMS content
+
+```ts
+import { listContents, type BaseCmsItem } from "talizen/cms"
+
+interface Blog extends BaseCmsItem {
   readonly __cmsKey: "blogs"
   body: {
     title?: string
@@ -28,53 +39,61 @@ interface Blogs extends BaseCmsItem {
   }
 }
 
-setTalizenConfig({
-  baseUrl: "https://www.talizen.com",
-  projectId: "demo-project",
+const result = await listContents<Blog>("blogs", {
+  limit: 10,
+  orderBy: "-created_at",
 })
 
-const blogs = await ListContent<Blogs>("blogs", {
-  limit: 10,
-})
+console.log(result.list)
+console.log(result.total)
 ```
 
-表单提交：
+### Get a single CMS content item
 
 ```ts
-import { SubmitForm } from "talizen/form"
+import { getContent, type BaseCmsItem } from "talizen/cms"
 
-await SubmitForm(
-  {
-    token: "form-token",
-    data: {
-      email: "hi@talizen.com",
-    },
-  },
-  {
-    projectId: "demo-project",
-  },
-)
+interface Blog extends BaseCmsItem {
+  readonly __cmsKey: "blogs"
+  body: {
+    title?: string
+  }
+}
+
+const blog = await getContent<Blog>("blogs", "hello-world")
 ```
 
-## 类型设计
+### Submit a form
 
-- `talizen/core`：通用基础类型，来自后端 `internal/model`。
-- `talizen/cms`：CMS schema、content、筛选参数、获取内容 API。
-- `talizen/form`：Form schema、提交参数、日志类型、提交 API。
+```ts
+import { submitForm } from "talizen/form"
 
-其中业务项目自己的 `types/cms.d.ts`、`types/form.d.ts` 依然建议由平台按项目 schema 动态生成；本仓库负责承载平台级公共类型和泛型 API。
+await submitForm("contact-form", {
+  email: "hi@talizen.com",
+  message: "Hello from the website",
+})
+```
 
-## 发布
+## Package Layout
+
+- `talizen/core`: shared runtime config, request helpers, and base data types.
+- `talizen/cms`: CMS content types and content query APIs.
+- `talizen/form`: form submission helpers and related types.
+
+## Publish
+
+Build and prepare the package contents:
 
 ```bash
 npm install
 npm run build
-npm publish
+node scripts/prepare-publish.mjs
 ```
 
-GitHub Actions 工作流在 `.github/workflows/publish.yml`，按 tag 发布 npm 包：
+The GitHub Actions workflow in `.github/workflows/publish.yml` publishes on a tag push. Release a new version with:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.0.8
+git push origin main
+git push origin v0.0.8
 ```

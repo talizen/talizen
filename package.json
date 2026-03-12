@@ -1,6 +1,6 @@
 {
   "name": "talizen",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "Talizen frontend SDK types for cms, form and core.",
   "type": "module",
   "license": "MIT",
@@ -9,23 +9,24 @@
     "README.md"
   ],
   "sideEffects": false,
-  "types": "./dist/index.d.ts",
+  "main": "./index.js",
+  "types": "./index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./index.d.ts",
+      "import": "./index.js"
     },
     "./core": {
-      "types": "./dist/core/index.d.ts",
-      "import": "./dist/core/index.js"
+      "types": "./core.d.ts",
+      "import": "./core.js"
     },
     "./cms": {
-      "types": "./dist/cms/index.d.ts",
-      "import": "./dist/cms/index.js"
+      "types": "./cms.d.ts",
+      "import": "./cms.js"
     },
     "./form": {
-      "types": "./dist/form/index.d.ts",
-      "import": "./dist/form/index.js"
+      "types": "./form.d.ts",
+      "import": "./form.js"
     }
   },
   "scripts": {
