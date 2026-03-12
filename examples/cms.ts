@@ -1,4 +1,4 @@
-import { ListContent, type BaseCmsItem } from "../src/cms/index.ts"
+import { listContents, type BaseCmsItem } from "../src/cms/index.ts"
 import { setTalizenConfig } from "../src/core/index.ts"
 
 interface Authors extends BaseCmsItem {
@@ -22,7 +22,13 @@ setTalizenConfig({
   baseUrl: "https://www.talizen.com",
 })
 
-void ListContent<Blogs>("blogs", {
+await listContents<Blogs>("blogs", {
+  limit: 10,
+  searchKey: "talizen",
+})
+
+// has error: Argument of type '"blogs"' is not assignable to parameter of type '"authors"'
+await listContents<Authors>("blogs", {
   limit: 10,
   searchKey: "talizen",
 })
