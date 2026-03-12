@@ -1,5 +1,5 @@
-import { ListContent, type BaseCmsItem } from "../src/cms/index.js"
-import { setTalizenConfig } from "../src/core/index.js"
+import { ListContent, type BaseCmsItem } from "../src/cms/index.ts"
+import { setTalizenConfig } from "../src/core/index.ts"
 
 interface Authors extends BaseCmsItem {
   readonly __cmsKey: "authors"
@@ -20,7 +20,6 @@ interface Blogs extends BaseCmsItem {
 
 setTalizenConfig({
   baseUrl: "https://www.talizen.com",
-  projectId: "demo-project",
 })
 
 void ListContent<Blogs>("blogs", {

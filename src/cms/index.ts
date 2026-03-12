@@ -1,9 +1,9 @@
-import { requestJson, resolveTalizenConfig, type ContentBodyField, type ContentSchema, type DBId, type TalizenRequestOptions } from "../core/index.js"
+import { requestJson, resolveTalizenConfig, type TalizenRequestOptions } from "../core/index.js"
 
 export interface BaseCmsItem {
   readonly __cmsKey: string
   slug: string
-  id: DBId
+  id: string
   body: Record<string, unknown>
 }
 
@@ -13,43 +13,10 @@ export interface CmsListItem<T extends BaseCmsItem = BaseCmsItem> {
   Item: T
 }
 
-export interface CmsApp<TSchema extends ContentSchema = ContentSchema> {
-  id: DBId
-  project_id: DBId
-  key: string
-  user_id: number
-  name: string
-  desc: string
-  schema: TSchema
-  created_at: string
-  updated_at: string
-  visibility?: "private" | "public" | (string & {})
-}
-
-export type ContentStatus = "online" | "offline" | (string & {})
-
-export interface CmsContent<TBody extends Record<string, unknown> = Record<string, unknown>> {
-  id: DBId
-  slug: string
-  content_app_id: DBId
-  user_id: number
-  schema: ContentSchema
-  tags?: string[]
-  status?: ContentStatus
-  body: {
-    [K in keyof TBody]?: ContentBodyField<TBody[K]>
-  }
-  draft_body?: {
-    [K in keyof TBody]?: ContentBodyField<TBody[K]>
-  }
-  created_at: string
-  updated_at: string
-}
-
 export interface GetContentListFilterCondition {
   fieldId?: string
   operator?: string
-  value?: unknown
+  value?: any
 }
 
 export interface GetContentListFilter {
@@ -84,14 +51,17 @@ export interface ContentWithPrevNext<T extends BaseCmsItem> {
   prev?: T
 }
 
+export interface ListResponse<T extends BaseCmsItem> {
+  list?: T[]
+  total?: number
+}
+
 export async function ListContent<T extends BaseCmsItem>(
   key: T["__cmsKey"],
   params: ListContentParams = {},
   options?: TalizenRequestOptions,
-): Promise<T[]> {
-  const projectId = requireProjectId(options)
-
-  const response = await requestJson<{ list?: T[] }>(
+): Promise<ListResponse<T>> {
+  const response = await requestJson<ListResponse<T>>(
     `/cms/${key}/content_list`,
     {
       method: "POST",
@@ -107,7 +77,7 @@ export async function ListContent<T extends BaseCmsItem>(
     options,
   )
 
-  return response.list ?? []
+  return response
 }
 
 export async function GetContent<T extends BaseCmsItem>(
@@ -116,7 +86,6 @@ export async function GetContent<T extends BaseCmsItem>(
   params?: GetContentParams,
   options?: TalizenRequestOptions,
 ): Promise<T> {
-  const projectId = requireProjectId(options)
   const url = new URL(`/cms/${key}/content`, "https://talizen.local")
 
   url.searchParams.set("slug", slug)
@@ -133,7 +102,6 @@ export async function GetContentWithPrevNext<T extends BaseCmsItem>(
   params: GetContentWithPrevNextParams = {},
   options?: TalizenRequestOptions,
 ): Promise<ContentWithPrevNext<T>> {
-  const projectId = requireProjectId(options)
   const url = new URL(`/cms/${key}/content_with_prev_next`, "https://talizen.local")
 
   url.searchParams.set("slug", slug)
@@ -157,13 +125,4 @@ export async function GetContentWithPrevNext<T extends BaseCmsItem>(
   }
 
   return requestJson<ContentWithPrevNext<T>>(url.pathname + url.search, undefined, options)
-}
-
-function requireProjectId(options?: TalizenRequestOptions): string {
-  const projectId = resolveTalizenConfig(options).projectId
-  if (projectId) {
-    return projectId
-  }
-
-  throw new Error("Talizen projectId is required. Pass options.projectId or call setTalizenConfig({ projectId }).")
 }
