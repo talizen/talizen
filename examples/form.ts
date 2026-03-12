@@ -3,7 +3,6 @@ import { setTalizenConfig } from "../src/core/index.js"
 
 setTalizenConfig({
   baseUrl: "https://www.talizen.com",
-  projectId: "demo-project",
 })
 
 void SubmitForm({

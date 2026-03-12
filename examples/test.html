@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Talizen SDK Test</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f1e8;
+      --panel: #fffdf7;
+      --border: #d8cdb5;
+      --text: #1f1a12;
+      --muted: #75674e;
+      --accent: #b6542d;
+      --accent-2: #245b4d;
+      --shadow: 0 18px 48px rgba(74, 52, 24, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Iowan Old Style", "Palatino Linotype", "Times New Roman", serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(182, 84, 45, 0.12), transparent 28%),
+        radial-gradient(circle at top right, rgba(36, 91, 77, 0.14), transparent 24%),
+        linear-gradient(180deg, #f8f4ea 0%, var(--bg) 100%);
+      min-height: 100vh;
+    }
+
+    main {
+      width: min(980px, calc(100vw - 32px));
+      margin: 32px auto;
+      padding: 24px;
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      background: rgba(255, 253, 247, 0.92);
+      box-shadow: var(--shadow);
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(32px, 4vw, 52px);
+      line-height: 1;
+      letter-spacing: -0.03em;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin-top: 24px;
+    }
+
+    .panel {
+      padding: 18px;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: var(--panel);
+    }
+
+    .panel h2 {
+      margin: 0 0 14px;
+      font-size: 18px;
+    }
+
+    label {
+      display: block;
+      margin-top: 12px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    input,
+    textarea,
+    select {
+      width: 100%;
+      margin-top: 6px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #fff;
+      color: var(--text);
+      font: inherit;
+    }
+
+    textarea {
+      min-height: 92px;
+      resize: vertical;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 11px 16px;
+      background: var(--accent);
+      color: #fff9f0;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    button.secondary {
+      background: var(--accent-2);
+    }
+
+    button.ghost {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .inline {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .inline input[type="checkbox"] {
+      width: auto;
+      margin: 0;
+    }
+
+    pre {
+      margin: 0;
+      padding: 18px;
+      border-radius: 18px;
+      border: 1px solid #2a241d;
+      background: #1a1713;
+      color: #f5ead7;
+      overflow: auto;
+      min-height: 280px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+
+<body>
+  <main>
+    <h1>Talizen SDK Browser Test</h1>
+    <p>直接双击打开即可测试。默认使用内置 mock 接口；关闭 mock 后会请求你填写的真实后端。</p>
+
+    <section class="grid">
+      <div class="panel">
+        <h2>Client Config</h2>
+        <label>
+          Base URL
+          <input id="baseUrl" value="https://talizen.local" />
+        </label>
+        <label>
+          Project ID
+          <input id="projectId" value="demo-project" />
+        </label>
+        <label class="inline">
+          <input id="useMock" type="checkbox" checked />
+          <span>Use mock fetch</span>
+        </label>
+      </div>
+
+      <div class="panel">
+        <h2>CMS Test</h2>
+        <label>
+          Content Key
+          <input id="cmsKey" value="blogs" />
+        </label>
+        <label>
+          Slug
+          <input id="cmsSlug" value="hello-talizen" />
+        </label>
+        <div class="actions">
+          <button id="listContentBtn">ListContent</button>
+          <button id="getContentBtn" class="secondary">GetContent</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Form Test</h2>
+        <label>
+          Form Token
+          <input id="formToken" value="demo-form-token" />
+        </label>
+        <label>
+          JSON Data
+          <textarea id="formData">{"email":"hi@talizen.com","name":"Talizen Demo"}</textarea>
+        </label>
+        <div class="actions">
+          <button id="submitFormBtn">SubmitForm</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" style="margin-top: 16px">
+      <h2>Output</h2>
+      <div class="actions" style="margin-top: 0; margin-bottom: 12px">
+        <button id="showConfigBtn" class="ghost">Show Config</button>
+        <button id="clearOutputBtn" class="ghost">Clear Output</button>
+      </div>
+      <pre id="output">Waiting for action...</pre>
+    </section>
+  </main>
+
+  <script type="module">
+    import {
+      getTalizenConfig,
+      setTalizenConfig,
+      ListContent,
+      GetContent,
+      SubmitForm,
+    } from "https://esm.sh/talizen@0.0.5";
+
+    const $ = (id) => document.getElementById(id);
+
+    const els = {
+      baseUrl: $("baseUrl"),
+      projectId: $("projectId"),
+      useMock: $("useMock"),
+      cmsKey: $("cmsKey"),
+      cmsSlug: $("cmsSlug"),
+      formToken: $("formToken"),
+      formData: $("formData"),
+      output: $("output"),
+    };
+
+    function render(title, data) {
+      const payload = typeof data === "string" ? data : JSON.stringify(data, null, 2);
+      els.output.textContent = `[${new Date().toLocaleTimeString()}] ${title}\n\n${payload}`;
+    }
+
+    function createMockFetch() {
+      return async (input, init) => {
+        const url = new URL(typeof input === "string" ? input : input.url);
+        const method = init?.method ?? "GET";
+
+        if (url.pathname.endsWith("/content_list") && method === "POST") {
+          return Response.json({
+            list: [
+              {
+                __cmsKey: els.cmsKey.value,
+                id: "cms-1",
+                slug: "hello-talizen",
+                body: {
+                  title: "Hello Talizen",
+                  summary: "Mock list item from browser test page.",
+                },
+              },
+              {
+                __cmsKey: els.cmsKey.value,
+                id: "cms-2",
+                slug: "second-post",
+                body: {
+                  title: "Second Post",
+                  summary: "Another mock item for ListContent.",
+                },
+              },
+            ],
+          });
+        }
+
+        if (url.pathname.endsWith("/content") && method === "GET") {
+          return Response.json({
+            __cmsKey: els.cmsKey.value,
+            id: "cms-1",
+            slug: url.searchParams.get("slug") || els.cmsSlug.value,
+            body: {
+              title: "Hello Talizen",
+              content: "Mock content detail from browser test page.",
+            },
+          });
+        }
+
+        if (url.pathname.endsWith("/form") && method === "POST") {
+          const body = JSON.parse(init?.body ?? "{}");
+          return Response.json({
+            ok: true,
+            received: body,
+          });
+        }
+
+        return new Response(
+          JSON.stringify({
+            error: "Unhandled mock route",
+            pathname: url.pathname,
+            method,
+          }),
+          {
+            status: 404,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        );
+      };
+    }
+
+    function applyConfig() {
+      setTalizenConfig({
+        baseUrl: els.baseUrl.value.trim(),
+        projectId: els.projectId.value.trim(),
+        fetch: els.useMock.checked ? createMockFetch() : window.fetch.bind(window),
+      });
+    }
+
+    $("showConfigBtn").addEventListener("click", () => {
+      applyConfig();
+      render("Current Config", getTalizenConfig());
+    });
+
+    $("clearOutputBtn").addEventListener("click", () => {
+      els.output.textContent = "Waiting for action...";
+    });
+
+    $("listContentBtn").addEventListener("click", async () => {
+      try {
+        applyConfig();
+        const data = await ListContent(els.cmsKey.value.trim(), { limit: 10 });
+        render("ListContent Result", data);
+      } catch (error) {
+        render("ListContent Error", String(error));
+      }
+    });
+
+    $("getContentBtn").addEventListener("click", async () => {
+      try {
+        applyConfig();
+        const data = await GetContent(els.cmsKey.value.trim(), els.cmsSlug.value.trim());
+        render("GetContent Result", data);
+      } catch (error) {
+        render("GetContent Error", String(error));
+      }
+    });
+
+    $("submitFormBtn").addEventListener("click", async () => {
+      try {
+        applyConfig();
+        const formData = JSON.parse(els.formData.value);
+        const data = await SubmitForm({
+          token: els.formToken.value.trim(),
+          data: formData,
+          fromUrl: window.location.href,
+        });
+        render("SubmitForm Result", data);
+      } catch (error) {
+        render("SubmitForm Error", String(error));
+      }
+    });
+
+    applyConfig();
+    render("Ready", {
+      message: "Click any action to test the SDK in browser.",
+      config: getTalizenConfig(),
+    });
+  </script>
+</body>
+
+</html>
