@@ -92,7 +92,7 @@ export async function ListContent<T extends BaseCmsItem>(
   const projectId = requireProjectId(options)
 
   const response = await requestJson<{ list?: T[] }>(
-    `/api/r/project/${projectId}/cms_by_key/${key}/content_list`,
+    `/cms/${key}/content_list`,
     {
       method: "POST",
       body: JSON.stringify({
@@ -117,7 +117,7 @@ export async function GetContent<T extends BaseCmsItem>(
   options?: TalizenRequestOptions,
 ): Promise<T> {
   const projectId = requireProjectId(options)
-  const url = new URL(`/api/r/project/${projectId}/cms_by_key/${key}/content`, "https://talizen.local")
+  const url = new URL(`/cms/${key}/content`, "https://talizen.local")
 
   url.searchParams.set("slug", slug)
   if (params?.builtinRef != null) {
@@ -134,7 +134,7 @@ export async function GetContentWithPrevNext<T extends BaseCmsItem>(
   options?: TalizenRequestOptions,
 ): Promise<ContentWithPrevNext<T>> {
   const projectId = requireProjectId(options)
-  const url = new URL(`/api/r/project/${projectId}/cms_by_key/${key}/content_with_prev_next`, "https://talizen.local")
+  const url = new URL(`/cms/${key}/content_with_prev_next`, "https://talizen.local")
 
   url.searchParams.set("slug", slug)
   if (params.prev != null) {
