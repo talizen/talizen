@@ -1,24 +1,23 @@
-import { requestJson, resolveTalizenConfig, type TalizenRequestOptions } from "../core/index.js"
+import { requestJson, type TalizenRequestOptions } from "../core/index.js"
 
 
-export interface SubmitFormParams<TBody extends Record<string, unknown>> {
-  token: string
-  data: TBody
+
+export interface FormRecord {
+  readonly __formKey?: string
+  [key: string]: unknown
 }
 
-export async function SubmitForm<TBody extends Record<string, unknown> = Record<string, unknown>>(
-  params: SubmitFormParams<TBody>,
+export async function submitForm<T extends FormRecord>(
+  keyOrToken: T["__formKey"] | string,
+  payload: T,
   options?: TalizenRequestOptions,
 ): Promise<"ok"> {
 
   return requestJson<"ok">(
-    `/form/submit`,
+    `/form/${keyOrToken}/submit`,
     {
       method: "POST",
-      body: JSON.stringify({
-        token: params.token,
-        data: params.data,
-      }),
+      body: JSON.stringify(payload),
     },
     options,
   )
