@@ -54,10 +54,19 @@ export function getTalizenConfig(): TalizenClientConfig {
   }
 }
 
+declare global {
+  interface Window {
+    TalizenConfig?: TalizenClientConfig | undefined;
+  }
+}
 export function resolveTalizenConfig(
   config?: TalizenRequestOptions,
 ): Required<Pick<TalizenClientConfig, "baseUrl" | "fetch">> & TalizenRequestOptions {
+
+  const windowConfig = typeof window !== "undefined" ? window.TalizenConfig : {}
+
   const merged = {
+    ...windowConfig,
     ...globalTalizenConfig,
     ...config,
   }
@@ -125,7 +134,7 @@ function getDefaultBaseUrl(): string {
     return window.location.origin
   }
 
-  throw new Error("Talizen baseUrl is required. Call setTalizenConfig({ baseUrl }) first.")
+  throw new Error("Talizen baseUrl is required. set window.TalizenConfig = { baseUrl: 'https://example.com' } first.")
 }
 
 function getDefaultFetch(): typeof fetch {
