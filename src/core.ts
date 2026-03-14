@@ -39,35 +39,32 @@ export interface TalizenRequestOptions extends TalizenClientConfig {
   signal?: AbortSignal
 }
 
-let globalTalizenConfig: TalizenClientConfig = {}
+let talizenConfig: TalizenClientConfig = {}
 
 export function setTalizenConfig(config: TalizenClientConfig): void {
-  globalTalizenConfig = {
-    ...globalTalizenConfig,
+  talizenConfig = {
+    ...talizenConfig,
     ...config,
   }
 }
 
 export function getTalizenConfig(): TalizenClientConfig {
-  return {
-    ...globalTalizenConfig,
-  }
+  return talizenConfig
 }
 
 declare global {
-  interface Window {
-    TalizenConfig?: TalizenClientConfig | undefined;
-  }
+  var TalizenConfig: TalizenClientConfig | undefined;
 }
+
 export function resolveTalizenConfig(
   config?: TalizenRequestOptions,
 ): Required<Pick<TalizenClientConfig, "baseUrl" | "fetch">> & TalizenRequestOptions {
-
-  const windowConfig = typeof window !== "undefined" ? window.TalizenConfig : {}
+  // globalThis is the global object in the browser and node.js
+  const globalTalizenConfig = typeof globalThis !== "undefined" ? globalThis.TalizenConfig : {}
 
   const merged = {
-    ...windowConfig,
     ...globalTalizenConfig,
+    ...talizenConfig,
     ...config,
   }
 
