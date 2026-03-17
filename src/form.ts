@@ -14,7 +14,9 @@ export async function submitForm<T extends FormRecord>(
     `/form/${keyOrToken}/submit`,
     {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        data: payload,
+      }),
     },
     options,
   )

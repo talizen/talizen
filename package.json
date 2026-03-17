@@ -1,6 +1,6 @@
 {
   "name": "talizen",
-  "version": "0.0.10",
+  "version": "0.0.11",
   "description": "Talizen frontend SDK types for cms, form and core.",
   "type": "module",
   "license": "MIT",
