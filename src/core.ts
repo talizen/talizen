@@ -29,10 +29,13 @@ export interface ImgItem {
 
 export type Image = ImgItem[] | ImgItem
 
+export type TalizenFileUploadProcessCallback = (key: string, process: number) => void
+
 export interface TalizenClientConfig {
   baseUrl?: string
   headers?: HeadersInit
   fetch?: typeof fetch
+  onFileUploadProcess?: TalizenFileUploadProcessCallback
 }
 
 export interface TalizenRequestOptions extends TalizenClientConfig {

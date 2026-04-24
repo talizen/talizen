@@ -23,6 +23,9 @@ import { setTalizenConfig } from "talizen/core"
 
 setTalizenConfig({
   baseUrl: "https://www.talizen.com",
+  onFileUploadProcess(key, process) {
+    console.log(key, process)
+  },
 })
 ```
 
@@ -73,6 +76,13 @@ await submitForm("contact-form", {
   message: "Hello from the website",
 })
 ```
+
+When a `File` object appears in the payload, `submitForm()` will:
+
+1. Call `POST /form/:key/file/preupload`
+2. If `hash_exist` is `false`, upload the file to the returned S3 signed URL
+3. Replace the original `File` value with the returned `file_url`
+4. Submit the final payload to `/form/:key/submit`
 
 ## Package Layout
 
