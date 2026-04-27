@@ -9,7 +9,7 @@ export interface BaseCmsItem {
 
 export interface GetContentListFilterCondition {
   fieldId?: string
-  operator?: string
+  operator?: "eq" | "neq" | "contains" | "not_contains"
   value?: any
 }
 
@@ -45,9 +45,25 @@ export interface ContentWithPrevNext<T extends BaseCmsItem> {
   prev?: T
 }
 
+export interface ContentCollection {
+  jsonSchema?: Record<string, unknown>
+  title?: string
+}
+
 export interface ListResponse<T> {
   list?: T[]
   total?: number
+}
+
+export async function getContentCollection(
+  key: string,
+  options?: TalizenRequestOptions,
+): Promise<ContentCollection | null> {
+  return requestJson<ContentCollection | null>(
+    `/cms/${key}`,
+    undefined,
+    options,
+  )
 }
 
 export async function listContents<T extends BaseCmsItem>(
