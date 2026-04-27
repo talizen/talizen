@@ -66,6 +66,17 @@ interface Blog extends BaseCmsItem {
 const blog = await getContent<Blog>("blogs", "hello-world")
 ```
 
+### Get CMS collection metadata
+
+```ts
+import { getContentCollection } from "talizen/cms"
+
+const collection = await getContentCollection("blogs")
+
+console.log(collection?.title)
+console.log(collection?.jsonSchema)
+```
+
 ### Submit a form
 
 ```ts
