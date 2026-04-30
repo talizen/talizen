@@ -42,6 +42,11 @@ export interface TalizenRequestOptions extends TalizenClientConfig {
   signal?: AbortSignal
 }
 
+export interface TalizenErrorBody {
+  code?: number | string
+  message?: string
+}
+
 let talizenConfig: TalizenClientConfig = {}
 
 export function setTalizenConfig(config: TalizenClientConfig): void {
@@ -92,6 +97,22 @@ function buildTalizenUrl(path: string, config?: TalizenRequestOptions): string {
   return joinUrl(resolved.baseUrl, path)
 }
 
+export class TalizenHttpError extends Error {
+  readonly status: number
+  readonly statusText: string
+  readonly body: string
+  readonly bodyJson: TalizenErrorBody | undefined
+
+  constructor(status: number, statusText: string, body: string, bodyJson?: TalizenErrorBody) {
+    super(`Talizen request failed: ${status} ${statusText} ${body}`.trim())
+    this.name = "TalizenHttpError"
+    this.status = status
+    this.statusText = statusText
+    this.body = body
+    this.bodyJson = bodyJson
+  }
+}
+
 export async function requestJson<T>(
   path: string,
   init?: RequestInit,
@@ -118,7 +139,8 @@ export async function requestJson<T>(
 
   if (!response.ok) {
     const text = await response.text()
-    throw new Error(`Talizen request failed: ${response.status} ${response.statusText} ${text}`.trim())
+    const bodyJson = parseTalizenErrorBody(text)
+    throw new TalizenHttpError(response.status, response.statusText, text, bodyJson)
   }
 
   const text = await response.text()
@@ -143,4 +165,35 @@ function getDefaultFetch(): typeof fetch {
   }
 
   throw new Error("Talizen fetch implementation is required in the current runtime.")
+}
+
+function parseTalizenErrorBody(body: string): TalizenErrorBody | undefined {
+  if (body === "") {
+    return undefined
+  }
+
+  try {
+    const parsed = JSON.parse(body) as unknown
+    if (isTalizenErrorBody(parsed)) {
+      return parsed
+    }
+  }
+  catch {
+    return undefined
+  }
+
+  return undefined
+}
+
+function isTalizenErrorBody(value: unknown): value is TalizenErrorBody {
+  if (typeof value !== "object" || value == null) {
+    return false
+  }
+
+  const record = value as Record<string, unknown>
+  const code = record.code
+  const message = record.message
+  const isCodeValid = code === undefined || typeof code === "number" || typeof code === "string"
+  const isMessageValid = message === undefined || typeof message === "string"
+  return isCodeValid && isMessageValid
 }

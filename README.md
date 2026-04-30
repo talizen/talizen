@@ -14,78 +14,89 @@ The package is designed to hold the platform-level APIs that frontend projects u
 npm install talizen
 ```
 
+or use esm.sh
+
+```
+{
+  "imports": {
+    "talizen": "https://esm.sh/talizen@0.1.4"
+    "talizen/": "https://esm.sh/talizen@0.1.4/"
+  }
+}
+```
+
 ## Usage
 
 ### Configure the client
 
 ```ts
-import { setTalizenConfig } from "talizen/core"
+import { setTalizenConfig } from "talizen/core";
 
 setTalizenConfig({
   baseUrl: "https://www.talizen.com",
   onFileUploadProcess(key, process) {
-    console.log(key, process)
+    console.log(key, process);
   },
-})
+});
 ```
 
 ### List CMS content
 
 ```ts
-import { listContents, type BaseCmsItem } from "talizen/cms"
+import { listContents, type BaseCmsItem } from "talizen/cms";
 
 interface Blog extends BaseCmsItem {
-  readonly __cmsKey: "blogs"
+  readonly __cmsKey: "blogs";
   body: {
-    title?: string
-    content?: string
-  }
+    title?: string;
+    content?: string;
+  };
 }
 
 const result = await listContents<Blog>("blogs", {
   limit: 10,
   orderBy: "-created_at",
-})
+});
 
-console.log(result.list)
-console.log(result.total)
+console.log(result.list);
+console.log(result.total);
 ```
 
 ### Get a single CMS content item
 
 ```ts
-import { getContent, type BaseCmsItem } from "talizen/cms"
+import { getContent, type BaseCmsItem } from "talizen/cms";
 
 interface Blog extends BaseCmsItem {
-  readonly __cmsKey: "blogs"
+  readonly __cmsKey: "blogs";
   body: {
-    title?: string
-  }
+    title?: string;
+  };
 }
 
-const blog = await getContent<Blog>("blogs", "hello-world")
+const blog = await getContent<Blog>("blogs", "hello-world");
 ```
 
 ### Get CMS collection metadata
 
 ```ts
-import { getContentCollection } from "talizen/cms"
+import { getContentCollection } from "talizen/cms";
 
-const collection = await getContentCollection("blogs")
+const collection = await getContentCollection("blogs");
 
-console.log(collection?.title)
-console.log(collection?.jsonSchema)
+console.log(collection?.title);
+console.log(collection?.jsonSchema);
 ```
 
 ### Submit a form
 
 ```ts
-import { submitForm } from "talizen/form"
+import { submitForm } from "talizen/form";
 
 await submitForm("contact-form", {
   email: "hi@talizen.com",
   message: "Hello from the website",
-})
+});
 ```
 
 When a `File` object appears in the payload, `submitForm()` will:
@@ -117,4 +128,22 @@ The GitHub Actions workflow in `.github/workflows/publish.yml` publishes on a ta
 git tag v0.0.8
 git push origin main
 git push origin v0.0.8
+```
+
+## Development
+
+```bash
+bun run dev
+```
+
+This will build the package and start a development server at http://localhost:8787.
+
+Use the development server in your project:
+
+```json
+{
+  "imports": {
+    "talizen/form": "http://localhost:8787/form.js"
+  }
+}
 ```
