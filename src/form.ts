@@ -1,4 +1,13 @@
-import { requestJson, resolveTalizenConfig, type TalizenRequestOptions } from "./core.js"
+import {
+  buildCaptchaAnswer,
+  runCaptchaVerification,
+  shouldRetryCaptchaSubmit,
+  type CaptchaChallenge,
+  type CaptchaUiTheme,
+} from "./captcha-ui.js"
+import { requestJson, resolveTalizenConfig, TalizenHttpError, type TalizenRequestOptions } from "./core.js"
+
+export type { CaptchaChallenge as FormCaptcha, CaptchaUiTheme as FormCaptchaUiTheme } from "./captcha-ui.js"
 
 export interface FormRecord {
   readonly __formKey?: string
@@ -19,24 +28,97 @@ interface NormalizedPreuploadResponse {
   fileUrl: string
 }
 
+export interface SubmitFormOptions extends TalizenRequestOptions {
+  captchaToken?: string
+  captchaAnswer?: string
+  captchaX?: number
+  captchaY?: number
+}
+
+export interface SubmitFormWithCaptchaOptions extends SubmitFormOptions {
+  shouldTriggerCaptcha?: (error: unknown) => boolean
+  captchaUiTheme?: CaptchaUiTheme
+}
+
 export async function submitForm<T extends FormRecord>(
   keyOrToken: T["__formKey"] | string,
   payload: T,
-  options?: TalizenRequestOptions,
+  options?: SubmitFormWithCaptchaOptions,
 ): Promise<"ok"> {
   const formKey = getFormKey(keyOrToken)
   const data = await replaceFiles(formKey, payload, "", options)
 
+  try {
+    return await submitFormRequest(formKey, data, options)
+  }
+  catch (error) {
+    if (!shouldShowCaptcha(error, options)) {
+      throw error
+    }
+  }
+
+  return runCaptchaVerification({
+    initialCaptcha: await getFormCaptcha(formKey, options),
+    signal: options?.signal,
+    theme: options?.captchaUiTheme,
+    refreshCaptcha: () => getFormCaptcha(formKey, options),
+    shouldRetry: (error) => shouldRetryCaptchaSubmit(error, (item) => shouldShowCaptcha(item, options)),
+    verify: (result) => submitFormRequest(formKey, data, {
+      ...options,
+      captchaToken: result.token,
+      captchaAnswer: buildCaptchaAnswer(result.x, result.y),
+      captchaX: result.x,
+      captchaY: result.y,
+    }),
+  })
+}
+
+function submitFormRequest(
+  formKey: string,
+  data: unknown,
+  options?: SubmitFormOptions,
+): Promise<"ok"> {
   return requestJson<"ok">(
     `/form/${formKey}/submit`,
     {
       method: "POST",
       body: JSON.stringify({
         data,
+        captcha_token: options?.captchaToken,
+        captcha_answer: options?.captchaAnswer,
+        captcha_x: options?.captchaX,
+        captcha_y: options?.captchaY,
       }),
     },
     options,
   )
+}
+
+export async function getFormCaptcha(
+  keyOrToken: string,
+  options?: TalizenRequestOptions,
+): Promise<CaptchaChallenge> {
+  const formKey = getFormKey(keyOrToken)
+
+  return requestJson<CaptchaChallenge>(
+    `/form/${formKey}/captcha`,
+    {
+      method: "GET",
+    },
+    options,
+  )
+}
+
+function shouldShowCaptcha(error: unknown, options?: SubmitFormWithCaptchaOptions): boolean {
+  return (options?.shouldTriggerCaptcha ?? isCaptchaRequiredError)(error)
+}
+
+function isCaptchaRequiredError(error: unknown): boolean {
+  return error instanceof TalizenHttpError && isCaptchaRequiredCode(error.bodyJson?.code)
+}
+
+function isCaptchaRequiredCode(code: number | string | undefined): boolean {
+  return code === 428 || code === "428"
 }
 
 function getFormKey(keyOrToken: string | undefined): string {
