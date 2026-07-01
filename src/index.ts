@@ -84,3 +84,30 @@ export interface Metadata {
   openGraph?: OpenGraphMetadata | null
   icons?: MetadataIcons | null
 }
+
+/**
+ * A single site-level redirect rule, aligned with Next.js `redirects()` semantics.
+ *
+ * Declare rules in the `redirects` array of `talizen.config.ts`. A matching
+ * request is redirected before the page renders, so redirects take precedence
+ * over pages and `/public` files.
+ */
+export interface Redirect {
+  /**
+   * Source path to match. Supports exact matches (`/old-page`) and a trailing
+   * wildcard segment (`/blog/*`).
+   */
+  source: string
+  /**
+   * Redirect target. May be an internal path (`/new-page`), a wildcard
+   * backreference (`/posts/*`), an absolute URL (`https://example.com/x`), or a
+   * protocol-relative URL (`//example.com/x`). Internal paths keep the original
+   * query string.
+   */
+  destination: string
+  /**
+   * `true` issues a 308 permanent redirect (best for SEO); `false` issues a 307
+   * temporary redirect.
+   */
+  permanent: boolean
+}
