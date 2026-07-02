@@ -90,3 +90,52 @@ export function Link(props: LinkProps): React.ReactElement {
   }
   return React.createElement("a", { ...rest, href: finalHref, onClick: handleClick })
 }
+
+/**
+ * 当前语言的 UI 文案（界面 chrome，非 CMS 内容）。由渲染引擎按当前 locale 从站点
+ * `/messages/{locale}.json` 读取、与默认语言逐 key 合并后注入 `globalThis.__TALIZEN_MESSAGES__`
+ * （SSR 与浏览器端一致）。缺失的 key 已在引擎侧回退默认语言，这里再兜底返回 key 本身。
+ */
+declare global {
+  // eslint-disable-next-line no-var
+  var __TALIZEN_MESSAGES__: Record<string, unknown> | undefined
+}
+
+function readMessages(): Record<string, unknown> {
+  return (typeof globalThis !== "undefined" ? globalThis.__TALIZEN_MESSAGES__ : undefined) ?? {}
+}
+
+function lookupMessage(obj: Record<string, unknown>, path: string): unknown {
+  let cur: unknown = obj
+  for (const seg of path.split(".")) {
+    if (cur == null || typeof cur !== "object") return undefined
+    cur = (cur as Record<string, unknown>)[seg]
+  }
+  return cur
+}
+
+/** 翻译函数：按 key 取文案（支持点路径），`{var}` 插值；缺失时返回 key 本身。 */
+export type Translator = (key: string, vars?: Record<string, unknown>) => string
+
+/**
+ * 读取 UI 文案翻译器。`namespace` 可将后续 key 限定到 messages 的某个子树（对齐 next-intl）。
+ *
+ * ```tsx
+ * const t = useTranslations("home")
+ * t("title")                    // messages.home.title
+ * t("greeting", { name })       // "你好 {name}" -> "你好 小明"
+ * ```
+ *
+ * UI chrome 用 useTranslations；文章等内容用 CMS 字段级 _i18n（见 listContents/getContent）。
+ */
+export function useTranslations(namespace?: string): Translator {
+  const messages = readMessages()
+  const scoped = namespace ? lookupMessage(messages, namespace) : messages
+  const base = (scoped && typeof scoped === "object" ? scoped : {}) as Record<string, unknown>
+  return (key, vars) => {
+    const raw = lookupMessage(base, key)
+    const text = typeof raw === "string" ? raw : key
+    if (!vars) return text
+    return text.replace(/\{(\w+)\}/g, (_, k: string) => (k in vars ? String(vars[k]) : `{${k}}`))
+  }
+}
