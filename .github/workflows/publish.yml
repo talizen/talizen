@@ -8,15 +8,19 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # OIDC 可信发布（Trusted Publisher）需要此权限签发 id-token
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           registry-url: "https://registry.npmjs.org"
+      # OIDC 可信发布需 npm >= 11.5.1，node 20 自带的是 npm 10，需升级
+      - run: npm install -g npm@latest
       - run: npm ci
       - run: npm run build
       - run: node scripts/prepare-publish.mjs
+      # 走 Trusted Publisher(OIDC)，不再需要 NODE_AUTH_TOKEN
       - run: npm publish ./dist --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
