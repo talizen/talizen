@@ -1,6 +1,6 @@
 {
   "name": "talizen",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "description": "Talizen frontend SDK types for cms, form and core.",
   "type": "module",
   "license": "MIT",
@@ -31,6 +31,10 @@
     "./form": {
       "types": "./form.d.ts",
       "import": "./form.js"
+    },
+    "./i18n": {
+      "types": "./i18n.d.ts",
+      "import": "./i18n.js"
     }
   },
   "scripts": {
@@ -40,8 +44,18 @@
     "dev:serve": "serve dist -p 8787 --cors",
     "dev": "concurrently \"bun run build:watch\" \"bun run dev:serve\""
   },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@types/react": "^19.0.0",
     "concurrently": "^9.2.1",
+    "react": "^19.0.0",
     "serve": "^14.2.4",
     "typescript": "^5.9.2"
   }

@@ -2,6 +2,7 @@ export * from "./core.js"
 export * from "./cms.js"
 export * from "./captcha-ui.js"
 export * from "./form.js"
+export * from "./i18n.js"
 
 type OneOrMany<T> = T | Array<T>
 

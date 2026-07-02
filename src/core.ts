@@ -102,15 +102,24 @@ export class TalizenHttpError extends Error {
   readonly statusText: string
   readonly body: string
   readonly bodyJson: TalizenErrorBody | undefined
+  readonly method: string | undefined
+  readonly url: string | undefined
 
-  constructor(status: number, statusText: string, body: string, bodyJson?: TalizenErrorBody) {
-    super(`Talizen request failed: ${status} ${statusText} ${body}`.trim())
+  constructor(status: number, statusText: string, body: string, bodyJson?: TalizenErrorBody, request?: TalizenErrorRequest) {
+    super(formatTalizenRequestErrorMessage(status, statusText, body, request))
     this.name = "TalizenHttpError"
     this.status = status
     this.statusText = statusText
     this.body = body
     this.bodyJson = bodyJson
+    this.method = request?.method
+    this.url = request?.url
   }
+}
+
+export interface TalizenErrorRequest {
+  method?: string
+  url?: string
 }
 
 export async function requestJson<T>(
@@ -131,7 +140,12 @@ export async function requestJson<T>(
     headers.set("content-type", "application/json")
   }
 
-  const response = await resolved.fetch(buildTalizenUrl(path, resolved), {
+  const requestUrl = buildTalizenUrl(path, resolved)
+  const request = {
+    method: normalizeRequestMethod(init?.method),
+    url: stripUrlQuery(requestUrl),
+  }
+  const response = await resolved.fetch(requestUrl, {
     ...init,
     headers,
     signal: resolved.signal,
@@ -140,7 +154,7 @@ export async function requestJson<T>(
   if (!response.ok) {
     const text = await response.text()
     const bodyJson = parseTalizenErrorBody(text)
-    throw new TalizenHttpError(response.status, response.statusText, text, bodyJson)
+    throw new TalizenHttpError(response.status, response.statusText, text, bodyJson, request)
   }
 
   const text = await response.text()
@@ -149,6 +163,31 @@ export async function requestJson<T>(
   }
 
   return JSON.parse(text) as T
+}
+
+export function stripUrlQuery(url: string): string {
+  try {
+    const parsed = new URL(url)
+    parsed.search = ""
+    return parsed.toString()
+  }
+  catch {
+    return url.split("?")[0] ?? url
+  }
+}
+
+export function normalizeRequestMethod(method: string | undefined): string {
+  return (method ?? "GET").toUpperCase()
+}
+
+function formatTalizenRequestErrorMessage(
+  status: number,
+  statusText: string,
+  body: string,
+  request?: TalizenErrorRequest,
+): string {
+  const requestText = [request?.method, request?.url].filter(Boolean).join(" ")
+  return `Talizen request failed: ${requestText} ${status} ${statusText} ${body}`.replace(/\s+/g, " ").trim()
 }
 
 function getDefaultBaseUrl(): string {

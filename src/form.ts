@@ -5,7 +5,14 @@ import {
   type CaptchaChallenge,
   type CaptchaUiTheme,
 } from "./captcha-ui.js"
-import { requestJson, resolveTalizenConfig, TalizenHttpError, type TalizenRequestOptions } from "./core.js"
+import {
+  normalizeRequestMethod,
+  requestJson,
+  resolveTalizenConfig,
+  stripUrlQuery,
+  TalizenHttpError,
+  type TalizenRequestOptions,
+} from "./core.js"
 
 export type { CaptchaChallenge as FormCaptcha, CaptchaUiTheme as FormCaptchaUiTheme } from "./captcha-ui.js"
 
@@ -222,6 +229,10 @@ async function uploadToSignedUrl(
   const resolved = resolveTalizenConfig(options)
   const headers = new Headers()
   const body: BodyInit = file
+  const request = {
+    method: normalizeRequestMethod("PUT"),
+    url: stripUrlQuery(target.uploadUrl),
+  }
 
   if (file.type) {
     headers.set("content-type", file.type)
@@ -236,7 +247,7 @@ async function uploadToSignedUrl(
 
   if (!response.ok) {
     const text = await response.text()
-    throw new Error(`Talizen file upload failed: ${response.status} ${response.statusText} ${text}`.trim())
+    throw new Error(formatUploadError(request, `${response.status} ${response.statusText} ${text}`))
   }
 }
 
@@ -250,6 +261,10 @@ function uploadWithXhr(
     const xhr = new XMLHttpRequest()
     const signal = options.signal
     const body: XMLHttpRequestBodyInit = file
+    const request = {
+      method: normalizeRequestMethod("PUT"),
+      url: stripUrlQuery(target.uploadUrl ?? ""),
+    }
 
     xhr.open("PUT", target.uploadUrl ?? "")
 
@@ -271,12 +286,12 @@ function uploadWithXhr(
         return
       }
 
-      reject(new Error(`Talizen file upload failed: ${xhr.status} ${xhr.statusText} ${xhr.responseText}`.trim()))
+      reject(new Error(formatUploadError(request, `${xhr.status} ${xhr.statusText} ${xhr.responseText}`)))
     }
 
     xhr.onerror = () => {
       cleanup()
-      reject(new Error("Talizen file upload failed: network error"))
+      reject(new Error(formatUploadError(request, "network error")))
     }
 
     xhr.onabort = () => {
@@ -290,6 +305,10 @@ function uploadWithXhr(
     signal?.addEventListener("abort", abort, { once: true })
     xhr.send(body)
   })
+}
+
+function formatUploadError(request: { method: string; url: string }, detail: string): string {
+  return `Talizen file upload failed: ${request.method} ${request.url} ${detail}`.replace(/\s+/g, " ").trim()
 }
 
 async function sha256(file: File): Promise<string> {
