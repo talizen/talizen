@@ -1,4 +1,21 @@
 import { requestJson, type TalizenRequestOptions } from "./core.js"
+import { useLocale } from "./i18n.js"
+
+// 字段级本地化解码：把 body._i18n[当前语言] 覆盖到同级字段并删除 _i18n。
+// 线上渲染引擎已在服务端解码（body 无 _i18n）→ 此处 no-op；编辑器预览未解码 → 此处按当前语言解码。
+function decodeBodyLocalization(body: Record<string, unknown>): Record<string, unknown> {
+  if (!body || typeof body !== "object" || !("_i18n" in body)) return body
+  const { _i18n, ...base } = body as Record<string, unknown> & {
+    _i18n?: Record<string, Record<string, unknown>>
+  }
+  const locale = useLocale().locale
+  const over = locale && _i18n ? _i18n[locale] : undefined
+  return over && typeof over === "object" ? { ...base, ...over } : base
+}
+
+function decodeItem<T extends BaseCmsItem>(item: T): T {
+  return item && item.body ? { ...item, body: decodeBodyLocalization(item.body) } : item
+}
 
 export interface BaseCmsItem {
   readonly __cmsKey: string
@@ -87,6 +104,7 @@ export async function listContents<T extends BaseCmsItem>(
     options,
   )
 
+  if (response.list) response.list = response.list.map(decodeItem)
   return response
 }
 
@@ -103,7 +121,8 @@ export async function getContent<T extends BaseCmsItem>(
     url.searchParams.set("builtin_ref", String(params.builtinRef))
   }
 
-  return requestJson<T>(url.pathname + url.search, undefined, options)
+  const item = await requestJson<T>(url.pathname + url.search, undefined, options)
+  return decodeItem(item)
 }
 
 export async function getContentWithPrevNext<T extends BaseCmsItem>(
@@ -112,7 +131,7 @@ export async function getContentWithPrevNext<T extends BaseCmsItem>(
   params: GetContentWithPrevNextParams = {},
   options?: TalizenRequestOptions,
 ): Promise<ContentWithPrevNext<T>> {
-  return requestJson<ContentWithPrevNext<T>>(
+  const res = await requestJson<ContentWithPrevNext<T>>(
     `/cms/${key}/content_with_prev_next`,
     {
       method: "POST",
@@ -128,4 +147,9 @@ export async function getContentWithPrevNext<T extends BaseCmsItem>(
     },
     options,
   )
+  return {
+    current: res.current ? decodeItem(res.current) : res.current,
+    next: res.next ? decodeItem(res.next) : res.next,
+    prev: res.prev ? decodeItem(res.prev) : res.prev,
+  }
 }
