@@ -1,14 +1,16 @@
 import { requestJson, type TalizenRequestOptions } from "./core.js"
-import { useLocale } from "./i18n.js"
+import { getLocale } from "./i18n.js"
 
 // 字段级本地化解码：把 body._i18n[当前语言] 覆盖到同级字段并删除 _i18n。
-// 线上渲染引擎已在服务端解码（body 无 _i18n）→ 此处 no-op；编辑器预览未解码 → 此处按当前语言解码。
+// 无论 SSR（getServerSideProps 取数）、客户端还是编辑器预览，都在此处按当前语言解码——
+// 渲染引擎不再解码 CMS，只透传原始 body（含 _i18n）。用 getLocale()（非 hook），
+// 因此在 getServerSideProps 里调用也合法。当前语言由引擎注入的 __TALIZEN_I18N__ 提供。
 function decodeBodyLocalization(body: Record<string, unknown>): Record<string, unknown> {
   if (!body || typeof body !== "object" || !("_i18n" in body)) return body
   const { _i18n, ...base } = body as Record<string, unknown> & {
     _i18n?: Record<string, Record<string, unknown>>
   }
-  const locale = useLocale().locale
+  const locale = getLocale().locale
   const over = locale && _i18n ? _i18n[locale] : undefined
   return over && typeof over === "object" ? { ...base, ...over } : base
 }

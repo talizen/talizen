@@ -41,6 +41,23 @@ export function useLocale(): LocaleRuntime {
 }
 
 /**
+ * 读取当前语言运行时信息——与 useLocale() 完全等价，但命名为 get*（**不是 hook**），
+ * 用于 getServerSideProps / generateMetadata 等**服务端取数场景**（对齐 next-intl 的 getLocale）。
+ * 组件渲染里用 useLocale()。SSR 与客户端返回一致。
+ *
+ * ```ts
+ * export async function getServerSideProps(ctx) {
+ *   const { locale } = getLocale()          // ✅ 服务端取数用 get*
+ *   const posts = await listContents("blog") // 内部按当前 locale 自动解码 CMS
+ *   return { props: { posts } }
+ * }
+ * ```
+ */
+export function getLocale(): LocaleRuntime {
+  return readLocaleRuntime()
+}
+
+/**
  * 给站内路径加语言前缀（默认语言不加前缀）。不传 `locale` 时使用当前语言。
  * 站外链接（协议 / 协议相对 URL）与页内锚点（`#...`）原样返回。
  *
@@ -128,7 +145,7 @@ export type Translator = (key: string, vars?: Record<string, unknown>) => string
  *
  * UI chrome 用 useTranslations；文章等内容用 CMS 字段级 _i18n（见 listContents/getContent）。
  */
-export function useTranslations(namespace?: string): Translator {
+function buildTranslator(namespace?: string): Translator {
   const messages = readMessages()
   const scoped = namespace ? lookupMessage(messages, namespace) : messages
   const base = (scoped && typeof scoped === "object" ? scoped : {}) as Record<string, unknown>
@@ -138,4 +155,24 @@ export function useTranslations(namespace?: string): Translator {
     if (!vars) return text
     return text.replace(/\{(\w+)\}/g, (_, k: string) => (k in vars ? String(vars[k]) : `{${k}}`))
   }
+}
+
+export function useTranslations(namespace?: string): Translator {
+  return buildTranslator(namespace)
+}
+
+/**
+ * 读取 UI 文案翻译器——与 useTranslations() 等价，但命名为 get*（**不是 hook**），
+ * 用于 getServerSideProps / generateMetadata 等**服务端取数场景**（对齐 next-intl 的 getTranslations）。
+ * 组件渲染里用 useTranslations()。
+ *
+ * ```ts
+ * export async function generateMetadata() {
+ *   const t = getTranslations("seo")
+ *   return { title: t("home_title") }
+ * }
+ * ```
+ */
+export function getTranslations(namespace?: string): Translator {
+  return buildTranslator(namespace)
 }
