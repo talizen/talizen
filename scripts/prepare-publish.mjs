@@ -12,6 +12,7 @@ const publishPackageJson = {
   description: packageJson.description,
   type: packageJson.type,
   license: packageJson.license,
+  repository: packageJson.repository,
   sideEffects: packageJson.sideEffects,
   main: packageJson.main,
   types: packageJson.types,

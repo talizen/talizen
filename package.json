@@ -4,6 +4,10 @@
   "description": "Talizen frontend SDK types for cms, form and core.",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/talizen/talizen.git"
+  },
   "files": [
     "dist",
     "README.md"
