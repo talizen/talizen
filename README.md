@@ -7,6 +7,7 @@ Talizen's frontend SDK package. It provides a small runtime client and shared ty
 - `talizen/cms`
 - `talizen/form`
 - `talizen/func`
+- `talizen/func-runtime`
 
 The package is designed to hold the platform-level APIs that frontend projects use directly, while project-specific CMS and form schema types can still be generated separately per project.
 
@@ -139,10 +140,10 @@ await invoke("user/auth", { email: "hi@talizen.com" });
 
 ### Write function runtime code
 
-Func code can use TypeScript and import runtime-only helpers from `talizen/func`:
+Func code can use TypeScript and import runtime-only helpers from `talizen/func-runtime`:
 
 ```ts
-import { auth, db, cache } from "talizen/func";
+import { auth, db, cache } from "talizen/func-runtime";
 
 export function create(input: { title: string }) {
   const user = auth.requireUser();
@@ -164,7 +165,8 @@ export function create(input: { title: string }) {
 - `talizen/auth`: project user register, login, logout, and current user helpers.
 - `talizen/cms`: CMS content types and content query APIs.
 - `talizen/form`: form submission helpers and related types.
-- `talizen/func`: custom function invocation helpers and Func-runtime-only `db`, `cache`, `auth` types.
+- `talizen/func`: custom function invocation helpers such as `invoke`.
+- `talizen/func-runtime`: Func-runtime-only `db`, `cache`, and `auth` types.
 
 ## Publish
 

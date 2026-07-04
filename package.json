@@ -1,6 +1,6 @@
 {
   "name": "talizen",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Talizen frontend SDK types for cms, form and core.",
   "type": "module",
   "license": "MIT",
@@ -43,6 +43,10 @@
     "./func": {
       "types": "./func.d.ts",
       "import": "./func.js"
+    },
+    "./func-runtime": {
+      "types": "./func-runtime.d.ts",
+      "import": "./func-runtime.js"
     },
     "./i18n": {
       "types": "./i18n.d.ts",
