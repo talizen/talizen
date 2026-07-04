@@ -3,8 +3,10 @@
 Talizen's frontend SDK package. It provides a small runtime client and shared types for:
 
 - `talizen/core`
+- `talizen/auth`
 - `talizen/cms`
 - `talizen/form`
+- `talizen/func`
 
 The package is designed to hold the platform-level APIs that frontend projects use directly, while project-specific CMS and form schema types can still be generated separately per project.
 
@@ -106,11 +108,42 @@ When a `File` object appears in the payload, `submitForm()` will:
 3. Replace the original `File` value with the returned `file_url`
 4. Submit the final payload to `/form/:key/submit`
 
+### Login users
+
+```ts
+import { currentUser, login, logout, register } from "talizen/auth";
+
+await register({ email: "hi@talizen.com", password: "secret", name: "Alice" });
+await login({ email: "hi@talizen.com", password: "secret" });
+
+const user = await currentUser();
+await logout();
+```
+
+### Invoke a custom function
+
+```ts
+import { invoke } from "talizen/func";
+
+const result = await invoke<{ success: boolean }>("user/auth.login", {
+  email: "hi@talizen.com",
+  password: "secret",
+});
+```
+
+`invoke("<fileKey>.<method>", input)` calls the method exported by the script file. If `.method` is omitted, Talizen calls `main`:
+
+```ts
+await invoke("user/auth", { email: "hi@talizen.com" });
+```
+
 ## Package Layout
 
 - `talizen/core`: shared runtime config, request helpers, and base data types.
+- `talizen/auth`: project user register, login, logout, and current user helpers.
 - `talizen/cms`: CMS content types and content query APIs.
 - `talizen/form`: form submission helpers and related types.
+- `talizen/func`: custom function invocation helpers.
 
 ## Publish
 
