@@ -114,8 +114,13 @@ When a `File` object appears in the payload, `submitForm()` will:
 ```ts
 import { currentUser, login, logout, register } from "talizen/auth";
 
-await register({ email: "hi@talizen.com", password: "secret", name: "Alice" });
-await login({ email: "hi@talizen.com", password: "secret" });
+await register({
+  account: "alice",
+  password: "secret",
+  name: "Alice",
+  email: "hi@talizen.com",
+});
+await login({ account: "alice", password: "secret" });
 
 const user = await currentUser();
 await logout();
@@ -126,16 +131,17 @@ await logout();
 ```ts
 import { invoke } from "talizen/func";
 
-const result = await invoke<{ success: boolean }>("user/auth.login", {
+const result = await invoke<{ ok: boolean; id: string }>("booking.create", {
   email: "hi@talizen.com",
-  password: "secret",
+  date: "2026-07-04",
+  time: "10:00",
 });
 ```
 
 `invoke("<fileKey>.<method>", input)` calls the method exported by the script file. If `.method` is omitted, Talizen calls `main`:
 
 ```ts
-await invoke("user/auth", { email: "hi@talizen.com" });
+await invoke("booking", { email: "hi@talizen.com" });
 ```
 
 ### Write function runtime code

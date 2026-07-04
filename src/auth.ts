@@ -5,7 +5,14 @@ import {
 
 export interface AuthUser {
   id: string
+  /**
+   * Login identifier for this project user.
+   * This does not need to be an email address or phone number.
+   */
+  account?: string
+  /** Optional contact email/profile field, not the primary login identifier. */
   email?: string
+  /** Optional contact phone/profile field, not the primary login identifier. */
   phone?: string
   name?: string
   avatar?: string
@@ -18,11 +25,17 @@ export interface AuthUser {
 }
 
 export interface AuthPasswordInput {
-  email: string
+  /**
+   * Login identifier for register/login.
+   * Do not substitute email or phone unless the user intentionally uses that
+   * value as their account.
+   */
+  account: string
   password: string
 }
 
 export interface AuthRegisterInput extends AuthPasswordInput {
+  email?: string
   phone?: string
   name?: string
   avatar?: string
