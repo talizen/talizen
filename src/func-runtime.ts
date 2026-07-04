@@ -68,27 +68,42 @@ export interface FuncCacheRuntime {
   expire(key: string, ttlSeconds: number): { ok?: boolean }
 }
 
-function unavailable(): never {
-  throw new Error("talizen/func-runtime is only available inside Talizen Func runtime.")
+export interface FuncReadonlyStringMap {
+  get(name: string): string | null
 }
 
-export const db: FuncDbRuntime = {
-  get: unavailable,
-  query: unavailable,
-  insert: unavailable,
-  update: unavailable,
-  delete: unavailable,
+export interface FuncRequestRuntime {
+  host: string
+  ip: string
+  method: string
+  path: string
+  headers: FuncReadonlyStringMap
+  cookies: FuncReadonlyStringMap
 }
 
-export const auth: FuncAuthRuntime = {
-  currentUser: unavailable,
-  requireUser: unavailable,
+export interface FuncCookieSetOptions {
+  path?: string
+  domain?: string
+  maxAge?: number
+  secure?: boolean
+  httpOnly?: boolean
+  sameSite?: "lax" | "strict" | "none"
 }
 
-export const cache: FuncCacheRuntime = {
-  get: unavailable,
-  set: unavailable,
-  del: unavailable,
-  incr: unavailable,
-  expire: unavailable,
+export interface FuncCookieRuntime {
+  get(name: string): string | null
+  set(name: string, value: string, options?: FuncCookieSetOptions): { ok?: boolean }
+  delete(name: string, options?: Pick<FuncCookieSetOptions, "path" | "domain">): {
+    ok?: boolean
+  }
+}
+
+export interface TalizenFuncContext {
+  trace_id: string
+  extra?: Record<string, unknown>
+  request: FuncRequestRuntime
+  db: FuncDbRuntime
+  auth: FuncAuthRuntime
+  cache: FuncCacheRuntime
+  cookies: FuncCookieRuntime
 }
