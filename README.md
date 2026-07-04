@@ -112,7 +112,14 @@ When a `File` object appears in the payload, `submitForm()` will:
 ### Login users
 
 ```ts
-import { currentUser, login, logout, register } from "talizen/auth";
+import {
+  currentUser,
+  listAuthProviders,
+  login,
+  loginWithOAuth,
+  logout,
+  register,
+} from "talizen/auth";
 
 await register({
   account: "alice",
@@ -124,6 +131,11 @@ await login({ account: "alice", password: "secret" });
 
 const user = await currentUser();
 await logout();
+
+const providers = await listAuthProviders();
+console.log(providers.map((provider) => provider.key));
+
+await loginWithOAuth("github", { redirectUrl: "/account" });
 ```
 
 ### Invoke a custom function
