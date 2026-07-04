@@ -17,12 +17,14 @@ export interface AuthUser {
   name?: string
   avatar?: string
   status?: string
-  profile?: unknown
+  profile?: AuthProfile
   email_verified_at?: string | null
   last_login_at?: string | null
   created_at?: string
   updated_at?: string
 }
+
+export type AuthProfile = Record<string, unknown>
 
 export interface AuthPasswordInput {
   /**
@@ -39,7 +41,7 @@ export interface AuthRegisterInput extends AuthPasswordInput {
   phone?: string
   name?: string
   avatar?: string
-  profile?: unknown
+  profile?: AuthProfile
 }
 
 export interface AuthProvider {
@@ -106,6 +108,20 @@ export async function logout(options?: TalizenRequestOptions): Promise<void> {
 
 export async function currentUser(options?: TalizenRequestOptions): Promise<AuthUser | null> {
   return requestJson<AuthUser | null>("/auth/me", { method: "GET" }, options)
+}
+
+export async function updateProfile(
+  profile: AuthProfile,
+  options?: TalizenRequestOptions,
+): Promise<AuthUser> {
+  return requestJson<AuthUser>(
+    "/auth/me/profile",
+    {
+      method: "PUT",
+      body: JSON.stringify({ profile }),
+    },
+    options,
+  )
 }
 
 export async function requireUser(options?: TalizenRequestOptions): Promise<AuthUser> {
