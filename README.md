@@ -158,24 +158,25 @@ await invoke("booking", { email: "hi@talizen.com" });
 
 ### Write function runtime code
 
-Func code can use TypeScript and import runtime-only helpers from `talizen/func-runtime`:
+Func code can use TypeScript and import Func authoring types from `talizen/func-runtime`.
+Runtime capabilities are passed through `ctx`:
 
 ```ts
-import { auth, db, cache } from "talizen/func-runtime";
+import type { TalizenFuncContext } from "talizen/func-runtime";
 
-export function create(input: { title: string }) {
-  const user = auth.requireUser();
-  const row = db.insert("book", {
+export function create(input: { title: string }, ctx: TalizenFuncContext) {
+  const user = ctx.auth.requireUser();
+  const row = ctx.db.insert("book", {
     title: input.title,
     user_id: user.id,
     status: "draft",
   });
-  cache.set(`book:${row.id}`, row, 60);
+  ctx.cache.set(`book:${row.id}`, row, 60);
   return { ok: true, id: row.id };
 }
 ```
 
-`db`, `cache`, and Func `auth` are injected by the Talizen Func runtime. They are typed in this package for authoring, but they are not browser/Node general-purpose APIs.
+`ctx.db`, `ctx.cache`, `ctx.auth`, `ctx.request`, and `ctx.cookies` are injected by the Talizen Func runtime. `talizen/func-runtime` is a type-only authoring module; do not import runtime values from it.
 
 ## Package Layout
 
@@ -184,7 +185,7 @@ export function create(input: { title: string }) {
 - `talizen/cms`: CMS content types and content query APIs.
 - `talizen/form`: form submission helpers and related types.
 - `talizen/func`: custom function invocation helpers such as `invoke`.
-- `talizen/func-runtime`: Func-runtime-only `db`, `cache`, and `auth` types.
+- `talizen/func-runtime`: Func-runtime-only `ctx` capability types.
 
 ## Publish
 
