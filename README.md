@@ -137,13 +137,34 @@ const result = await invoke<{ success: boolean }>("user/auth.login", {
 await invoke("user/auth", { email: "hi@talizen.com" });
 ```
 
+### Write function runtime code
+
+Func code can use TypeScript and import runtime-only helpers from `talizen/func`:
+
+```ts
+import { auth, db, cache } from "talizen/func";
+
+export function create(input: { title: string }) {
+  const user = auth.requireUser();
+  const row = db.insert("book", {
+    title: input.title,
+    user_id: user.id,
+    status: "draft",
+  });
+  cache.set(`book:${row.id}`, row, 60);
+  return { ok: true, id: row.id };
+}
+```
+
+`db`, `cache`, and Func `auth` are injected by the Talizen Func runtime. They are typed in this package for authoring, but they are not browser/Node general-purpose APIs.
+
 ## Package Layout
 
 - `talizen/core`: shared runtime config, request helpers, and base data types.
 - `talizen/auth`: project user register, login, logout, and current user helpers.
 - `talizen/cms`: CMS content types and content query APIs.
 - `talizen/form`: form submission helpers and related types.
-- `talizen/func`: custom function invocation helpers.
+- `talizen/func`: custom function invocation helpers and Func-runtime-only `db`, `cache`, `auth` types.
 
 ## Publish
 
