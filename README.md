@@ -119,6 +119,7 @@ import {
   loginWithOAuth,
   logout,
   register,
+  updateProfile,
 } from "talizen/auth";
 
 await register({
@@ -130,6 +131,9 @@ await register({
 await login({ account: "alice", password: "secret" });
 
 const user = await currentUser();
+await updateProfile({
+  address: "No. 1 Example Road",
+});
 await logout();
 
 const providers = await listAuthProviders();
