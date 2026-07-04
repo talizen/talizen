@@ -42,6 +42,22 @@ export interface AuthRegisterInput extends AuthPasswordInput {
   profile?: unknown
 }
 
+export interface AuthProvider {
+  key: string
+  name: string
+  scopes?: string
+  status?: string
+}
+
+export interface AuthProviderListResponse {
+  total?: number
+  list?: AuthProvider[]
+}
+
+export interface AuthOAuthLoginURLOptions extends TalizenRequestOptions {
+  redirectUrl?: string
+}
+
 export class TalizenAuthError extends Error {
   constructor(message: string) {
     super(message)
@@ -98,4 +114,41 @@ export async function requireUser(options?: TalizenRequestOptions): Promise<Auth
     throw new TalizenAuthError("Login required.")
   }
   return user
+}
+
+export async function listAuthProviders(options?: TalizenRequestOptions): Promise<AuthProvider[]> {
+  const response = await requestJson<AuthProviderListResponse>(
+    "/auth/provider_list",
+    { method: "GET" },
+    options,
+  )
+  return response.list ?? []
+}
+
+export async function getOAuthLoginUrl(
+  provider: string,
+  options?: AuthOAuthLoginURLOptions,
+): Promise<string> {
+  const url = new URL("/auth/oauth/login_url", "https://talizen.local")
+  url.searchParams.set("provider", provider)
+  if (options?.redirectUrl) {
+    url.searchParams.set("redirect_url", options.redirectUrl)
+  }
+  const response = await requestJson<{ url: string }>(
+    url.pathname + url.search,
+    { method: "GET" },
+    options,
+  )
+  return response.url
+}
+
+export async function loginWithOAuth(
+  provider: string,
+  options?: AuthOAuthLoginURLOptions,
+): Promise<void> {
+  const target = await getOAuthLoginUrl(provider, options)
+  if (typeof window === "undefined" || !window.location) {
+    throw new TalizenAuthError("OAuth login requires a browser window.")
+  }
+  window.location.href = target
 }
