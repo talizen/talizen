@@ -48,6 +48,10 @@
       "types": "./func-runtime.d.ts",
       "import": "./func-runtime.js"
     },
+    "./server-runtime": {
+      "types": "./server-runtime.d.ts",
+      "import": "./server-runtime.js"
+    },
     "./i18n": {
       "types": "./i18n.d.ts",
       "import": "./i18n.js"
