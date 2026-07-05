@@ -160,6 +160,28 @@ const result = await invoke<{ ok: boolean; id: string }>("booking.create", {
 await invoke("booking", { email: "hi@talizen.com" });
 ```
 
+### Use Func from server-side page code
+
+In `getServerSideProps`, use the injected server context instead of importing
+`talizen/func`:
+
+```ts
+import type { TalizenServerSideContext } from "talizen/server-runtime";
+
+export async function getServerSideProps(ctx: TalizenServerSideContext) {
+  const user = ctx.auth.currentUser();
+  const data = ctx.func.invoke<{ ok: boolean }>("contact.privateData", {
+    path: ctx.request.path,
+  });
+
+  return { props: { user, data } };
+}
+```
+
+Server-side context supports `ctx.request`, `ctx.cookies`, `ctx.auth`, and
+`ctx.func.invoke`. It intentionally does not expose `ctx.db` or `ctx.cache`; put
+business data access in Func code and call it through `ctx.func.invoke`.
+
 ### Write function runtime code
 
 Func code can use TypeScript and import Func authoring types from `talizen/func-runtime`.
@@ -190,6 +212,7 @@ export function create(input: { title: string }, ctx: TalizenFuncContext) {
 - `talizen/form`: form submission helpers and related types.
 - `talizen/func`: custom function invocation helpers such as `invoke`.
 - `talizen/func-runtime`: Func-runtime-only `ctx` capability types.
+- `talizen/server-runtime`: getServerSideProps-only `ctx` capability types.
 
 ## Publish
 
