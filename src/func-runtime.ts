@@ -28,6 +28,11 @@ export type DbRecord<T extends Record<string, unknown> = Record<string, unknown>
   id: string
 }
 
+export interface DbQueryResult<T extends Record<string, unknown> = Record<string, unknown>> {
+  total: number
+  list: Array<DbRecord<T>>
+}
+
 export interface FuncDbRuntime {
   get<T extends Record<string, unknown> = Record<string, unknown>>(
     table: string,
@@ -36,7 +41,7 @@ export interface FuncDbRuntime {
   query<T extends Record<string, unknown> = Record<string, unknown>>(
     table: string,
     query?: DbQuery,
-  ): Array<DbRecord<T>>
+  ): DbQueryResult<T>
   insert<T extends Record<string, unknown> = Record<string, unknown>>(
     table: string,
     data: T,
