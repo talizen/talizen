@@ -198,6 +198,22 @@ export function create(input: { title: string }, ctx: TalizenFuncContext) {
 }
 ```
 
+`ctx.db.query(table, query)` returns `{ total, list }`, where `total` is the
+matched record count before pagination and `list` is the current page:
+
+```ts
+import type { TalizenFuncContext } from "talizen/func-runtime";
+
+export function list(input: { offset?: number }, ctx: TalizenFuncContext) {
+  const result = ctx.db.query<{ title: string; status: string }>("book", {
+    where: { status: "published" },
+    limit: 20,
+    offset: input.offset || 0,
+  });
+  return { total: result.total, books: result.list };
+}
+```
+
 `ctx.db`, `ctx.cache`, `ctx.auth`, `ctx.request`, and `ctx.cookies` are injected by the Talizen Func runtime. `talizen/func-runtime` is a type-only authoring module; do not import runtime values from it.
 
 ## Package Layout
