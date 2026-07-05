@@ -29,16 +29,7 @@ export interface TalizenServerCookieRuntime {
   }
 }
 
-export interface TalizenServerAuthRuntime<User = unknown> {
-  currentUser(): User | null
-  requireUser(): User
-}
-
-export interface TalizenServerFuncRuntime {
-  invoke<T = unknown>(key: string, input?: unknown): T
-}
-
-export interface TalizenServerSideContext<User = unknown> {
+export interface TalizenServerSideContext {
   query: Record<string, string | string[]>
   searchParams: Record<string, string | string[]>
   params: Record<string, string>
@@ -48,6 +39,4 @@ export interface TalizenServerSideContext<User = unknown> {
   request: TalizenServerRequestRuntime
   req: TalizenServerRequestRuntime
   cookies: TalizenServerCookieRuntime
-  auth: TalizenServerAuthRuntime<User>
-  func: TalizenServerFuncRuntime
 }
