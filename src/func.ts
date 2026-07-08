@@ -32,7 +32,7 @@ export class TalizenFuncError extends Error {
 export async function invoke<T = unknown>(
   name: string,
   input?: unknown,
-  options?: TalizenRequestOptions,
+  options?: RunFuncOptions,
 ): Promise<T> {
   const target = parseInvokeName(name)
   return runFunc<T>(target.key, input, {
@@ -43,6 +43,8 @@ export async function invoke<T = unknown>(
 
 export interface RunFuncOptions extends TalizenRequestOptions {
   method?: string
+  timeoutMS?: number
+  timeoutMs?: number
 }
 
 export async function runFunc<T = unknown>(
@@ -52,8 +54,10 @@ export async function runFunc<T = unknown>(
 ): Promise<T> {
   const normalizedKey = normalizeFuncKey(key)
   const method = normalizeFuncMethod(options?.method)
+  const timeoutMS = normalizeTimeoutMS(options?.timeoutMS ?? options?.timeoutMs)
+  const path = `/func/${encodeFuncKey(normalizedKey)}${method === "main" ? "" : `.${encodeURIComponent(method)}`}${timeoutMS ? `?timeout_ms=${timeoutMS}` : ""}`
   const response = await requestJson<FuncRunResponse<T>>(
-    `/func/${encodeFuncKey(normalizedKey)}${method === "main" ? "" : `.${encodeURIComponent(method)}`}`,
+    path,
     {
       method: "POST",
       body: JSON.stringify(input ?? {}),
@@ -108,4 +112,14 @@ function normalizeFuncMethod(method: string | undefined): string {
 
 function encodeFuncKey(key: string): string {
   return key.split("/").map(encodeURIComponent).join("/")
+}
+
+function normalizeTimeoutMS(timeoutMS: number | undefined): number | undefined {
+  if (timeoutMS == null) {
+    return undefined
+  }
+  if (!Number.isFinite(timeoutMS) || timeoutMS <= 0) {
+    throw new Error(`Invalid Talizen func timeoutMS: ${timeoutMS}`)
+  }
+  return Math.floor(timeoutMS)
 }
