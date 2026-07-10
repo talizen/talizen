@@ -1,31 +1,53 @@
 import * as React from "react"
+import { getTalizenConfig, subscribeTalizenConfig, type TalizenLocaleRuntime } from "./core.js"
 
 /**
- * 当前语言运行时信息。由 Talizen 渲染引擎注入到 `globalThis.__TALIZEN_I18N__`
- * （SSR 与浏览器端注入同一份，避免 hydration 不一致）。站点未开启多语言时为空。
+ * 当前语言运行时信息。由 Talizen 渲染引擎写入 TalizenConfig.i18n
+ * （旧版 globalThis.__TALIZEN_I18N__ 仍作为兼容 fallback）。站点未开启多语言时为空。
  */
-export interface LocaleRuntime {
-  /** 当前生效语言；站点未配置多语言时为 ""。 */
-  locale: string
-  /** 站点配置的全部语言。 */
-  locales: string[]
-  /** 默认语言（其 URL 无前缀）。 */
-  defaultLocale: string
-}
+export type LocaleRuntime = TalizenLocaleRuntime
 
 declare global {
   // eslint-disable-next-line no-var
   var __TALIZEN_I18N__: Partial<LocaleRuntime> | undefined
 }
 
-function readLocaleRuntime(): LocaleRuntime {
-  const d = (typeof globalThis !== "undefined" ? globalThis.__TALIZEN_I18N__ : undefined) ?? {}
+type I18nSnapshot = {
+  i18n: Partial<LocaleRuntime> | undefined
+  messages: Record<string, unknown>
+}
+
+let lastSnapshot: I18nSnapshot | null = null
+let lastSnapshotI18n: Partial<LocaleRuntime> | undefined
+let lastSnapshotMessages: Record<string, unknown> | undefined
+
+function readI18nRuntimeConfig(): I18nSnapshot {
+  const config = getTalizenConfig()
+  const fallbackI18n = typeof globalThis !== "undefined" ? globalThis.__TALIZEN_I18N__ : undefined
+  const fallbackMessages = typeof globalThis !== "undefined" ? globalThis.__TALIZEN_MESSAGES__ : undefined
+  const i18n = config.i18n ?? fallbackI18n
+  const messages = config.messages ?? fallbackMessages ?? {}
+  if (lastSnapshot && lastSnapshotI18n === i18n && lastSnapshotMessages === messages) {
+    return lastSnapshot
+  }
+  lastSnapshotI18n = i18n
+  lastSnapshotMessages = messages
+  lastSnapshot = { i18n, messages }
+  return lastSnapshot
+}
+
+function normalizeLocaleRuntime(value: Partial<LocaleRuntime> | undefined): LocaleRuntime {
+  const d = value ?? {}
   const locales = Array.isArray(d.locales) ? d.locales.filter((l): l is string => typeof l === "string") : []
   return {
     locale: typeof d.locale === "string" ? d.locale : "",
     locales,
     defaultLocale: typeof d.defaultLocale === "string" ? d.defaultLocale : (locales[0] ?? ""),
   }
+}
+
+function readLocaleRuntime(): LocaleRuntime {
+  return normalizeLocaleRuntime(readI18nRuntimeConfig().i18n)
 }
 
 /**
@@ -37,7 +59,8 @@ function readLocaleRuntime(): LocaleRuntime {
  * ```
  */
 export function useLocale(): LocaleRuntime {
-  return readLocaleRuntime()
+  const snapshot = React.useSyncExternalStore(subscribeTalizenConfig, readI18nRuntimeConfig, readI18nRuntimeConfig)
+  return normalizeLocaleRuntime(snapshot.i18n)
 }
 
 /**
@@ -98,6 +121,7 @@ export type LinkProps = React.AnchorHTMLAttributes<HTMLAnchorElement> & {
  */
 export function Link(props: LinkProps): React.ReactElement {
   const { href, locale, onClick, ...rest } = props
+  useLocale()
   const finalHref = localizedPath(href, locale)
   const handleClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
     if (locale && typeof document !== "undefined") {
@@ -119,7 +143,7 @@ declare global {
 }
 
 function readMessages(): Record<string, unknown> {
-  return (typeof globalThis !== "undefined" ? globalThis.__TALIZEN_MESSAGES__ : undefined) ?? {}
+  return readI18nRuntimeConfig().messages
 }
 
 function lookupMessage(obj: Record<string, unknown>, path: string): unknown {
@@ -145,8 +169,8 @@ export type Translator = (key: string, vars?: Record<string, unknown>) => string
  *
  * UI chrome 用 useTranslations；文章等内容用 CMS 字段级 _i18n（见 listContents/getContent）。
  */
-function buildTranslator(namespace?: string): Translator {
-  const messages = readMessages()
+function buildTranslator(namespace?: string, sourceMessages?: Record<string, unknown>): Translator {
+  const messages = sourceMessages ?? readMessages()
   const scoped = namespace ? lookupMessage(messages, namespace) : messages
   const base = (scoped && typeof scoped === "object" ? scoped : {}) as Record<string, unknown>
   return (key, vars) => {
@@ -158,7 +182,8 @@ function buildTranslator(namespace?: string): Translator {
 }
 
 export function useTranslations(namespace?: string): Translator {
-  return buildTranslator(namespace)
+  const snapshot = React.useSyncExternalStore(subscribeTalizenConfig, readI18nRuntimeConfig, readI18nRuntimeConfig)
+  return React.useMemo(() => buildTranslator(namespace, snapshot.messages), [namespace, snapshot])
 }
 
 /**

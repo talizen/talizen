@@ -36,6 +36,8 @@ export interface TalizenClientConfig {
   headers?: HeadersInit
   fetch?: typeof fetch
   onFileUploadProcess?: TalizenFileUploadProcessCallback
+  i18n?: Partial<TalizenLocaleRuntime>
+  messages?: Record<string, unknown>
 }
 
 export interface TalizenRequestOptions extends TalizenClientConfig {
@@ -47,17 +49,32 @@ export interface TalizenErrorBody {
   message?: string
 }
 
+export interface TalizenLocaleRuntime {
+  locale: string
+  locales: string[]
+  defaultLocale: string
+}
+
 let talizenConfig: TalizenClientConfig = {}
+const talizenConfigListeners = new Set<() => void>()
 
 export function setTalizenConfig(config: TalizenClientConfig): void {
   talizenConfig = {
     ...talizenConfig,
     ...config,
   }
+  talizenConfigListeners.forEach(listener => listener())
 }
 
 export function getTalizenConfig(): TalizenClientConfig {
   return talizenConfig
+}
+
+export function subscribeTalizenConfig(listener: () => void): () => void {
+  talizenConfigListeners.add(listener)
+  return () => {
+    talizenConfigListeners.delete(listener)
+  }
 }
 
 declare global {
