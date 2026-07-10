@@ -216,6 +216,10 @@ export function list(input: { offset?: number }, ctx: TalizenFuncContext) {
 
 `ctx.db`, `ctx.cache`, `ctx.auth`, `ctx.request`, and `ctx.cookies` are injected by the Talizen Func runtime. `talizen/func-runtime` is a type-only authoring module; do not import runtime values from it.
 
+`ctx.request` exposes Fetch-style one-shot body readers. Use `await ctx.request.text()` when a webhook signature must be verified against the exact request bytes, `await ctx.request.json()` for parsed JSON, or `await ctx.request.arrayBuffer()` for binary input. Reading the body sets `ctx.request.bodyUsed`; a second read rejects. `ctx.response.status(code)` sets the actual HTTP response status (100-599), including statuses returned when a Func throws after setting the status. The runtime also provides `TextEncoder` and the HMAC SHA-256 subset of `crypto.subtle` (`importKey`, `sign`, and `verify`) for webhook verification.
+
+Func HTTP responses use the HTTP status code rather than a top-level `ok` field. Successful responses contain `{ result: ... }`; failed responses contain `{ error: ... }`. `invoke()` unwraps `result` for callers.
+
 ## Package Layout
 
 - `talizen/core`: shared runtime config, request helpers, and base data types.
