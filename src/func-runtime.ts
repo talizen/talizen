@@ -84,6 +84,14 @@ export interface FuncRequestRuntime {
   path: string
   headers: FuncReadonlyStringMap
   cookies: FuncReadonlyStringMap
+  readonly bodyUsed: boolean
+  text(): Promise<string>
+  json<T = unknown>(): Promise<T>
+  arrayBuffer(): Promise<ArrayBuffer>
+}
+
+export interface FuncResponseRuntime {
+  status(code: number): void
 }
 
 export interface FuncCookieSetOptions {
@@ -107,6 +115,7 @@ export interface TalizenFuncContext {
   trace_id: string
   extra?: Record<string, unknown>
   request: FuncRequestRuntime
+  response: FuncResponseRuntime
   db: FuncDbRuntime
   auth: FuncAuthRuntime
   cache: FuncCacheRuntime

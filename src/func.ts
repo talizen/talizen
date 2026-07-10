@@ -1,5 +1,6 @@
 import {
   requestJson,
+  TalizenHttpError,
   type TalizenRequestOptions,
 } from "./core.js"
 
@@ -9,7 +10,6 @@ export interface FuncLogEntry {
 }
 
 export interface FuncRunResponse<T = unknown> {
-  ok: boolean
   result?: T
   logs?: FuncLogEntry[]
   error?: string
@@ -19,13 +19,15 @@ export class TalizenFuncError extends Error {
   readonly key: string
   readonly method: string
   readonly logs: FuncLogEntry[]
+  readonly status: number
 
-  constructor(key: string, method: string, message: string, logs?: FuncLogEntry[]) {
+  constructor(key: string, method: string, message: string, logs?: FuncLogEntry[], status = 200) {
     super(message)
     this.name = "TalizenFuncError"
     this.key = key
     this.method = method
     this.logs = logs ?? []
+    this.status = status
   }
 }
 
@@ -56,20 +58,46 @@ export async function runFunc<T = unknown>(
   const method = normalizeFuncMethod(options?.method)
   const timeoutMS = normalizeTimeoutMS(options?.timeoutMS ?? options?.timeoutMs)
   const path = `/func/${encodeFuncKey(normalizedKey)}${method === "main" ? "" : `.${encodeURIComponent(method)}`}${timeoutMS ? `?timeout_ms=${timeoutMS}` : ""}`
-  const response = await requestJson<FuncRunResponse<T>>(
-    path,
-    {
-      method: "POST",
-      body: JSON.stringify(input ?? {}),
-    },
-    options,
-  )
+  let response: FuncRunResponse<T>
+  try {
+    response = await requestJson<FuncRunResponse<T>>(
+      path,
+      {
+        method: "POST",
+        body: JSON.stringify(input ?? {}),
+      },
+      options,
+    )
+  } catch (error) {
+    if (error instanceof TalizenHttpError) {
+      throw new TalizenFuncError(normalizedKey, method, funcHttpErrorMessage(error), undefined, error.status)
+    }
+    throw error
+  }
 
-  if (!response.ok) {
+  if (response.error) {
     throw new TalizenFuncError(normalizedKey, method, response.error || "Talizen func failed.", response.logs)
   }
 
   return response.result as T
+}
+
+function funcHttpErrorMessage(error: TalizenHttpError): string {
+  try {
+    const payload = JSON.parse(error.body) as { error?: unknown }
+    if (typeof payload.error === "string") {
+      return payload.error
+    }
+    if (payload.error && typeof payload.error === "object") {
+      const message = (payload.error as { message?: unknown }).message
+      if (typeof message === "string") {
+        return message
+      }
+    }
+  } catch {
+    // Fall through to the HTTP error body.
+  }
+  return error.body || error.message || "Talizen func failed."
 }
 
 export function parseInvokeName(name: string): { key: string; method: string } {
