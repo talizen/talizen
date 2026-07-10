@@ -17,8 +17,8 @@ jobs:
         with:
           node-version: 22
           registry-url: "https://registry.npmjs.org"
-      # OIDC 可信发布需 npm >= 11.5.1；npm@latest(12) 要求 node >= 22.22.2，故用 node 22
-      - run: npm install -g npm@latest
+      # OIDC 可信发布需 npm >= 11.5.1；npm@12.0.0 的 provenance 缺失 sigstore 模块，暂固定到稳定的 npm 11
+      - run: npm install -g npm@11
       - run: npm ci
       - run: npm run build
       - run: node scripts/prepare-publish.mjs
