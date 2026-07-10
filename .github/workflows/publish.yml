@@ -15,9 +15,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           registry-url: "https://registry.npmjs.org"
-      # OIDC 可信发布需 npm >= 11.5.1，node 20 自带的是 npm 10，需升级
+      # OIDC 可信发布需 npm >= 11.5.1；npm@latest(12) 要求 node >= 22.22.2，故用 node 22
       - run: npm install -g npm@latest
       - run: npm ci
       - run: npm run build
