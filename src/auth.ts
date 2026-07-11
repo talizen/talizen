@@ -3,6 +3,7 @@ import {
   getTalizenConfig,
   requestJson,
   subscribeTalizenConfig,
+  TalizenHttpError,
   type TalizenRequestOptions,
 } from "./core.js"
 
@@ -63,6 +64,8 @@ export interface AuthOAuthLoginURLOptions extends TalizenRequestOptions {
   redirectUrl?: string
 }
 
+export type User = AuthUser
+
 export class TalizenAuthError extends Error {
   constructor(message: string) {
     super(message)
@@ -102,15 +105,122 @@ export interface UseAuthResult {
   user: AuthUser | null
   loading: boolean
   error: unknown
+  isAuthenticated: boolean
+  isInitialized: boolean
   refresh(): Promise<AuthUser | null>
   login(input: AuthPasswordInput): Promise<AuthUser>
+  login(account: string, password: string): Promise<AuthUser>
   register(input: AuthRegisterInput): Promise<AuthUser>
+  register(account: string, password: string, name?: string): Promise<AuthUser>
   logout(): Promise<void>
   updateProfile(profile: AuthProfile): Promise<AuthUser>
 }
 
-function readAuthConfigSnapshot() {
-  return getTalizenConfig()
+type AuthSnapshot = Pick<UseAuthResult, "user" | "loading" | "error" | "isAuthenticated" | "isInitialized">
+
+const authListeners = new Set<() => void>()
+let currentUserState: AuthUser | null = null
+let authErrorState: unknown = null
+let isAuthInitialized = false
+let isAuthLoading = false
+let authSnapshot: AuthSnapshot = readAuthSnapshot()
+let authRequestId = 0
+let isAuthConfigSubscriptionStarted = false
+
+function readAuthSnapshot(): AuthSnapshot {
+  return {
+    user: currentUserState,
+    loading: isAuthLoading,
+    error: authErrorState,
+    isAuthenticated: !!currentUserState,
+    isInitialized: isAuthInitialized,
+  }
+}
+
+function emitAuthChange() {
+  authSnapshot = readAuthSnapshot()
+  authListeners.forEach(listener => listener())
+}
+
+function subscribeAuth(listener: () => void): () => void {
+  authListeners.add(listener)
+  return () => {
+    authListeners.delete(listener)
+  }
+}
+
+function ensureAuthConfigSubscription() {
+  if (isAuthConfigSubscriptionStarted) return
+  isAuthConfigSubscriptionStarted = true
+  subscribeTalizenConfig(() => {
+    void refreshAuthState().catch(() => {})
+  })
+}
+
+function normalizeLoginInput(input: AuthPasswordInput | string, password?: string): AuthPasswordInput {
+  if (typeof input === "string") {
+    return {
+      account: input,
+      password: password ?? "",
+    }
+  }
+  return input
+}
+
+function normalizeRegisterInput(input: AuthRegisterInput | string, password?: string, name?: string): AuthRegisterInput {
+  if (typeof input === "string") {
+    return {
+      account: input,
+      email: input,
+      password: password ?? "",
+      name,
+    }
+  }
+  return input
+}
+
+function isUnauthenticatedError(error: unknown): boolean {
+  return error instanceof TalizenHttpError && error.status === 401
+}
+
+async function refreshAuthState(options?: TalizenRequestOptions): Promise<AuthUser | null> {
+  const requestId = authRequestId + 1
+  authRequestId = requestId
+  isAuthLoading = true
+  authErrorState = null
+  emitAuthChange()
+  try {
+    const user = await currentUser(options)
+    if (authRequestId === requestId) {
+      currentUserState = user
+      authErrorState = null
+      isAuthInitialized = true
+      isAuthLoading = false
+      emitAuthChange()
+    }
+    return user
+  } catch (error) {
+    if (authRequestId === requestId) {
+      currentUserState = null
+      authErrorState = isUnauthenticatedError(error) ? null : error
+      isAuthInitialized = true
+      isAuthLoading = false
+      emitAuthChange()
+    }
+    if (isUnauthenticatedError(error)) {
+      return null
+    }
+    throw error
+  }
+}
+
+function setAuthUser(user: AuthUser | null) {
+  authRequestId += 1
+  currentUserState = user
+  authErrorState = null
+  isAuthInitialized = true
+  isAuthLoading = false
+  emitAuthChange()
 }
 
 /**
@@ -120,77 +230,50 @@ function readAuthConfigSnapshot() {
  * config, which lets preview auth headers update the page without remounting.
  */
 export function useAuth(options?: TalizenRequestOptions): UseAuthResult {
-  const configSnapshot = React.useSyncExternalStore(
-    subscribeTalizenConfig,
-    readAuthConfigSnapshot,
-    readAuthConfigSnapshot,
-  )
+  const snapshot = React.useSyncExternalStore(subscribeAuth, () => authSnapshot, () => authSnapshot)
   const optionsRef = React.useRef(options)
-  const requestIdRef = React.useRef(0)
-  const [state, setState] = React.useState<Pick<UseAuthResult, "user" | "loading" | "error">>({
-    user: null,
-    loading: true,
-    error: null,
-  })
 
   React.useEffect(() => {
     optionsRef.current = options
   }, [options])
 
   const refresh = React.useCallback(async () => {
-    const requestId = requestIdRef.current + 1
-    requestIdRef.current = requestId
-    setState(current => ({ ...current, loading: true, error: null }))
-    try {
-      const nextUser = await currentUser(optionsRef.current)
-      if (requestIdRef.current === requestId) {
-        setState({ user: nextUser, loading: false, error: null })
-      }
-      return nextUser
-    } catch (error) {
-      if (requestIdRef.current === requestId) {
-        setState(current => ({ ...current, loading: false, error }))
-      }
-      throw error
-    }
+    return refreshAuthState(optionsRef.current)
   }, [])
 
   React.useEffect(() => {
+    ensureAuthConfigSubscription()
     void refresh().catch(() => {})
-  }, [configSnapshot, refresh])
+  }, [refresh])
 
-  const loginAndRefresh = React.useCallback(async (input: AuthPasswordInput) => {
-    const nextUser = await login(input, optionsRef.current)
-    requestIdRef.current += 1
-    setState({ user: nextUser, loading: false, error: null })
+  const loginAndRefresh = React.useCallback(async (input: AuthPasswordInput | string, password?: string) => {
+    const nextUser = await login(normalizeLoginInput(input, password), optionsRef.current)
+    setAuthUser(nextUser)
     return nextUser
   }, [])
 
-  const registerAndRefresh = React.useCallback(async (input: AuthRegisterInput) => {
-    const nextUser = await register(input, optionsRef.current)
-    requestIdRef.current += 1
-    setState({ user: nextUser, loading: false, error: null })
+  const registerAndRefresh = React.useCallback(async (input: AuthRegisterInput | string, password?: string, name?: string) => {
+    const nextUser = await register(normalizeRegisterInput(input, password, name), optionsRef.current)
+    setAuthUser(nextUser)
     return nextUser
   }, [])
 
   const logoutAndRefresh = React.useCallback(async () => {
     await logout(optionsRef.current)
-    requestIdRef.current += 1
-    setState({ user: null, loading: false, error: null })
+    setAuthUser(null)
   }, [])
 
   const updateProfileAndRefresh = React.useCallback(async (profile: AuthProfile) => {
     const nextUser = await updateProfile(profile, optionsRef.current)
-    requestIdRef.current += 1
-    setState({ user: nextUser, loading: false, error: null })
+    setAuthUser(nextUser)
     return nextUser
   }, [])
 
   return {
-    ...state,
+    ...snapshot,
     refresh,
-    login: loginAndRefresh,
-    register: registerAndRefresh,
+    login: loginAndRefresh as UseAuthResult["login"],
+    register: registerAndRefresh as UseAuthResult["register"],
     logout: logoutAndRefresh,
     updateProfile: updateProfileAndRefresh,
   }
