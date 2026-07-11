@@ -25,10 +25,11 @@ let lastSnapshotMessages: Record<string, unknown> | undefined
 
 function readI18nRuntimeConfig(): I18nSnapshot {
   const config = getTalizenConfig()
+  const globalConfig = typeof globalThis !== "undefined" ? globalThis.TalizenConfig : undefined
   const fallbackI18n = typeof globalThis !== "undefined" ? globalThis.__TALIZEN_I18N__ : undefined
   const fallbackMessages = typeof globalThis !== "undefined" ? globalThis.__TALIZEN_MESSAGES__ : undefined
-  const i18n = config.i18n ?? fallbackI18n
-  const messages = config.messages ?? fallbackMessages ?? emptyMessages
+  const i18n = config.i18n ?? globalConfig?.i18n ?? fallbackI18n
+  const messages = config.messages ?? globalConfig?.messages ?? fallbackMessages ?? emptyMessages
   if (lastSnapshot && lastSnapshotI18n === i18n && lastSnapshotMessages === messages) {
     return lastSnapshot
   }
