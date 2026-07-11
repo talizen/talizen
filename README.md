@@ -115,9 +115,7 @@ When a `File` object appears in the payload, `submitForm()` will:
 import {
   currentUser,
   listAuthProviders,
-  login,
   loginWithOAuth,
-  logout,
   register,
   updateProfile,
   useAuth,
@@ -129,13 +127,11 @@ await register({
   name: "Alice",
   email: "hi@talizen.com",
 });
-await login({ account: "alice", password: "secret" });
 
 const user = await currentUser();
 await updateProfile({
   address: "No. 1 Example Road",
 });
-await logout();
 
 const providers = await listAuthProviders();
 console.log(providers.map((provider) => provider.key));
@@ -143,9 +139,9 @@ console.log(providers.map((provider) => provider.key));
 await loginWithOAuth("github", { redirectUrl: "/account" });
 
 function AccountBadge() {
-  const { user, loading, logout } = useAuth();
+  const { user, loading, login, logout } = useAuth();
   if (loading) return <span>Loading...</span>;
-  if (!user) return <a href="/login">Sign in</a>;
+  if (!user) return <button onClick={() => login("alice", "secret")}>Sign in</button>;
   return <button onClick={() => logout()}>{user.name ?? user.account ?? "Logout"}</button>;
 }
 ```
@@ -231,7 +227,7 @@ Func HTTP responses use the HTTP status code rather than a top-level `ok` field.
 ## Package Layout
 
 - `talizen/core`: shared runtime config, request helpers, and base data types.
-- `talizen/auth`: project user register, login, logout, and current user helpers.
+- `talizen/auth`: project user register, current user helpers, and the React `useAuth()` state hook for login/logout flows.
 - `talizen/cms`: CMS content types and content query APIs.
 - `talizen/form`: form submission helpers and related types.
 - `talizen/func`: custom function invocation helpers such as `invoke`.
