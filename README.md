@@ -111,27 +111,12 @@ When a `File` object appears in the payload, `submitForm()` will:
 
 ### Login users
 
-```ts
+```tsx
 import {
-  currentUser,
   listAuthProviders,
   loginWithOAuth,
-  register,
-  updateProfile,
   useAuth,
 } from "talizen/auth";
-
-await register({
-  account: "alice",
-  password: "secret",
-  name: "Alice",
-  email: "hi@talizen.com",
-});
-
-const user = await currentUser();
-await updateProfile({
-  address: "No. 1 Example Road",
-});
 
 const providers = await listAuthProviders();
 console.log(providers.map((provider) => provider.key));
@@ -139,10 +124,16 @@ console.log(providers.map((provider) => provider.key));
 await loginWithOAuth("github", { redirectUrl: "/account" });
 
 function AccountBadge() {
-  const { user, loading, login, logout } = useAuth();
+  const { user, loading, login, register, logout, updateProfile } = useAuth();
   if (loading) return <span>Loading...</span>;
   if (!user) return <button onClick={() => login("alice", "secret")}>Sign in</button>;
-  return <button onClick={() => logout()}>{user.name ?? user.account ?? "Logout"}</button>;
+  return (
+    <div>
+      <button onClick={() => register("bob", "secret", "Bob")}>Create account</button>
+      <button onClick={() => updateProfile({ address: "No. 1 Example Road" })}>Update profile</button>
+      <button onClick={() => logout()}>{user.name ?? user.account ?? "Logout"}</button>
+    </div>
+  );
 }
 ```
 
