@@ -157,21 +157,23 @@ await invoke("booking", { email: "hi@talizen.com" });
 
 ### Server-side page context
 
-In `getServerSideProps`, use the injected server context for request metadata
-and cookies. Do not import `talizen/auth` or `talizen/func`, and do not read
-auth state or call Func from server-side page code:
+In `getServerSideProps`, use the injected server context for request metadata,
+cookies, and auth. Do not import `talizen/auth` or `talizen/func`, and do not
+call Func from server-side page code:
 
 ```ts
 import type { TalizenServerSideContext } from "talizen/server-runtime";
 
 export async function getServerSideProps(ctx: TalizenServerSideContext) {
-  return { props: { path: ctx.request.path } };
+  const user = ctx.auth.currentUser();
+  return { props: { path: ctx.request.path, user } };
 }
 ```
 
-Server-side context supports `ctx.request` and `ctx.cookies`. It intentionally
-does not expose `ctx.auth`, `ctx.db`, `ctx.cache`, or `ctx.func`; put login UI,
-private business data access, and writes in browser-side SDK/Func/API flows.
+Server-side context supports `ctx.request`, `ctx.cookies`, and `ctx.auth`.
+It intentionally does not expose `ctx.db`, `ctx.cache`, or `ctx.func`; put
+login UI, private business data writes, and custom backend actions in
+browser-side SDK/Func/API flows.
 
 ### Write function runtime code
 
