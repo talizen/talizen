@@ -17,6 +17,8 @@ type I18nSnapshot = {
   messages: Record<string, unknown>
 }
 
+const emptyMessages: Record<string, unknown> = {}
+
 let lastSnapshot: I18nSnapshot | null = null
 let lastSnapshotI18n: Partial<LocaleRuntime> | undefined
 let lastSnapshotMessages: Record<string, unknown> | undefined
@@ -26,7 +28,7 @@ function readI18nRuntimeConfig(): I18nSnapshot {
   const fallbackI18n = typeof globalThis !== "undefined" ? globalThis.__TALIZEN_I18N__ : undefined
   const fallbackMessages = typeof globalThis !== "undefined" ? globalThis.__TALIZEN_MESSAGES__ : undefined
   const i18n = config.i18n ?? fallbackI18n
-  const messages = config.messages ?? fallbackMessages ?? {}
+  const messages = config.messages ?? fallbackMessages ?? emptyMessages
   if (lastSnapshot && lastSnapshotI18n === i18n && lastSnapshotMessages === messages) {
     return lastSnapshot
   }
