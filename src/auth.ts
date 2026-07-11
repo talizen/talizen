@@ -1,5 +1,8 @@
+import * as React from "react"
 import {
+  getTalizenConfig,
   requestJson,
+  subscribeTalizenConfig,
   type TalizenRequestOptions,
 } from "./core.js"
 
@@ -93,6 +96,104 @@ export async function login(
     },
     options,
   )
+}
+
+export interface UseAuthResult {
+  user: AuthUser | null
+  loading: boolean
+  error: unknown
+  refresh(): Promise<AuthUser | null>
+  login(input: AuthPasswordInput): Promise<AuthUser>
+  register(input: AuthRegisterInput): Promise<AuthUser>
+  logout(): Promise<void>
+  updateProfile(profile: AuthProfile): Promise<AuthUser>
+}
+
+function readAuthConfigSnapshot() {
+  return getTalizenConfig()
+}
+
+/**
+ * Subscribe to the current auth user.
+ *
+ * The hook reloads `/auth/me` whenever `setTalizenConfig()` changes runtime
+ * config, which lets preview auth headers update the page without remounting.
+ */
+export function useAuth(options?: TalizenRequestOptions): UseAuthResult {
+  const configSnapshot = React.useSyncExternalStore(
+    subscribeTalizenConfig,
+    readAuthConfigSnapshot,
+    readAuthConfigSnapshot,
+  )
+  const optionsRef = React.useRef(options)
+  const requestIdRef = React.useRef(0)
+  const [state, setState] = React.useState<Pick<UseAuthResult, "user" | "loading" | "error">>({
+    user: null,
+    loading: true,
+    error: null,
+  })
+
+  React.useEffect(() => {
+    optionsRef.current = options
+  }, [options])
+
+  const refresh = React.useCallback(async () => {
+    const requestId = requestIdRef.current + 1
+    requestIdRef.current = requestId
+    setState(current => ({ ...current, loading: true, error: null }))
+    try {
+      const nextUser = await currentUser(optionsRef.current)
+      if (requestIdRef.current === requestId) {
+        setState({ user: nextUser, loading: false, error: null })
+      }
+      return nextUser
+    } catch (error) {
+      if (requestIdRef.current === requestId) {
+        setState(current => ({ ...current, loading: false, error }))
+      }
+      throw error
+    }
+  }, [])
+
+  React.useEffect(() => {
+    void refresh().catch(() => {})
+  }, [configSnapshot, refresh])
+
+  const loginAndRefresh = React.useCallback(async (input: AuthPasswordInput) => {
+    const nextUser = await login(input, optionsRef.current)
+    requestIdRef.current += 1
+    setState({ user: nextUser, loading: false, error: null })
+    return nextUser
+  }, [])
+
+  const registerAndRefresh = React.useCallback(async (input: AuthRegisterInput) => {
+    const nextUser = await register(input, optionsRef.current)
+    requestIdRef.current += 1
+    setState({ user: nextUser, loading: false, error: null })
+    return nextUser
+  }, [])
+
+  const logoutAndRefresh = React.useCallback(async () => {
+    await logout(optionsRef.current)
+    requestIdRef.current += 1
+    setState({ user: null, loading: false, error: null })
+  }, [])
+
+  const updateProfileAndRefresh = React.useCallback(async (profile: AuthProfile) => {
+    const nextUser = await updateProfile(profile, optionsRef.current)
+    requestIdRef.current += 1
+    setState({ user: nextUser, loading: false, error: null })
+    return nextUser
+  }, [])
+
+  return {
+    ...state,
+    refresh,
+    login: loginAndRefresh,
+    register: registerAndRefresh,
+    logout: logoutAndRefresh,
+    updateProfile: updateProfileAndRefresh,
+  }
 }
 
 export async function logout(options?: TalizenRequestOptions): Promise<void> {

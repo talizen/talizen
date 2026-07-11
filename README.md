@@ -120,6 +120,7 @@ import {
   logout,
   register,
   updateProfile,
+  useAuth,
 } from "talizen/auth";
 
 await register({
@@ -140,6 +141,13 @@ const providers = await listAuthProviders();
 console.log(providers.map((provider) => provider.key));
 
 await loginWithOAuth("github", { redirectUrl: "/account" });
+
+function AccountBadge() {
+  const { user, loading, logout } = useAuth();
+  if (loading) return <span>Loading...</span>;
+  if (!user) return <a href="/login">Sign in</a>;
+  return <button onClick={() => logout()}>{user.name ?? user.account ?? "Logout"}</button>;
+}
 ```
 
 ### Invoke a custom function
