@@ -1,5 +1,3 @@
-import type { AuthUser } from "./auth.js"
-
 export interface ServerReadonlyStringMap {
   get(name: string): string | null
 }
@@ -31,11 +29,6 @@ export interface TalizenServerCookieRuntime {
   }
 }
 
-export interface TalizenServerAuthRuntime {
-  currentUser(): AuthUser | null
-  requireUser(): AuthUser
-}
-
 export interface TalizenServerSideContext {
   query: Record<string, string | string[]>
   searchParams: Record<string, string | string[]>
@@ -46,5 +39,4 @@ export interface TalizenServerSideContext {
   request: TalizenServerRequestRuntime
   req: TalizenServerRequestRuntime
   cookies: TalizenServerCookieRuntime
-  auth: TalizenServerAuthRuntime
 }
