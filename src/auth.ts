@@ -183,6 +183,13 @@ function isUnauthenticatedError(error: unknown): boolean {
   return error instanceof TalizenHttpError && error.status === 401
 }
 
+// AuthUser is plain JSON response data, so serialize-compare is sufficient.
+function isSameAuthUser(a: AuthUser | null, b: AuthUser | null): boolean {
+  if (a === b) return true
+  if (!a || !b) return false
+  return JSON.stringify(a) === JSON.stringify(b)
+}
+
 async function refreshAuthState(options?: TalizenRequestOptions): Promise<AuthUser | null> {
   const requestId = authRequestId + 1
   authRequestId = requestId
@@ -190,8 +197,13 @@ async function refreshAuthState(options?: TalizenRequestOptions): Promise<AuthUs
   authErrorState = null
   emitAuthChange()
   try {
-    const user = await fetchCurrentUser(options)
+    let user = await fetchCurrentUser(options)
     if (authRequestId === requestId) {
+      // Keep the previous reference when the payload is unchanged so `user`
+      // stays stable for React dependency arrays.
+      if (isSameAuthUser(currentUserState, user)) {
+        user = currentUserState
+      }
       currentUserState = user
       authErrorState = null
       isAuthInitialized = true
@@ -216,7 +228,9 @@ async function refreshAuthState(options?: TalizenRequestOptions): Promise<AuthUs
 
 function setAuthUser(user: AuthUser | null) {
   authRequestId += 1
-  currentUserState = user
+  if (!isSameAuthUser(currentUserState, user)) {
+    currentUserState = user
+  }
   authErrorState = null
   isAuthInitialized = true
   isAuthLoading = false
@@ -228,6 +242,9 @@ function setAuthUser(user: AuthUser | null) {
  *
  * The hook reloads `/auth/me` whenever `setTalizenConfig()` changes runtime
  * config, which lets preview auth headers update the page without remounting.
+ *
+ * The returned object and its `user` keep stable references until the auth
+ * state actually changes, so both are safe to use in React dependency arrays.
  */
 export function useAuth(options?: TalizenRequestOptions): UseAuthResult {
   const snapshot = React.useSyncExternalStore(subscribeAuth, () => authSnapshot, () => authSnapshot)
@@ -269,14 +286,17 @@ export function useAuth(options?: TalizenRequestOptions): UseAuthResult {
     return nextUser
   }, [])
 
-  return {
-    ...snapshot,
-    refresh,
-    login: loginAndRefresh as UseAuthResult["login"],
-    register: registerAndRefresh as UseAuthResult["register"],
-    logout: logoutAndRefresh,
-    updateProfile: updateProfileAndRefresh,
-  }
+  return React.useMemo(
+    () => ({
+      ...snapshot,
+      refresh,
+      login: loginAndRefresh as UseAuthResult["login"],
+      register: registerAndRefresh as UseAuthResult["register"],
+      logout: logoutAndRefresh,
+      updateProfile: updateProfileAndRefresh,
+    }),
+    [snapshot, refresh, loginAndRefresh, registerAndRefresh, logoutAndRefresh, updateProfileAndRefresh],
+  )
 }
 
 async function logoutRequest(options?: TalizenRequestOptions): Promise<void> {
