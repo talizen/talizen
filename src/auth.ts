@@ -87,7 +87,7 @@ export async function register(
   )
 }
 
-export async function login(
+async function loginRequest(
   input: AuthPasswordInput,
   options?: TalizenRequestOptions,
 ): Promise<AuthUser> {
@@ -247,7 +247,7 @@ export function useAuth(options?: TalizenRequestOptions): UseAuthResult {
   }, [refresh])
 
   const loginAndRefresh = React.useCallback(async (input: AuthPasswordInput | string, password?: string) => {
-    const nextUser = await login(normalizeLoginInput(input, password), optionsRef.current)
+    const nextUser = await loginRequest(normalizeLoginInput(input, password), optionsRef.current)
     setAuthUser(nextUser)
     return nextUser
   }, [])
@@ -259,7 +259,7 @@ export function useAuth(options?: TalizenRequestOptions): UseAuthResult {
   }, [])
 
   const logoutAndRefresh = React.useCallback(async () => {
-    await logout(optionsRef.current)
+    await logoutRequest(optionsRef.current)
     setAuthUser(null)
   }, [])
 
@@ -279,7 +279,7 @@ export function useAuth(options?: TalizenRequestOptions): UseAuthResult {
   }
 }
 
-export async function logout(options?: TalizenRequestOptions): Promise<void> {
+async function logoutRequest(options?: TalizenRequestOptions): Promise<void> {
   await requestJson<{ ok: boolean }>(
     "/auth/logout",
     {
