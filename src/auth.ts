@@ -190,7 +190,7 @@ async function refreshAuthState(options?: TalizenRequestOptions): Promise<AuthUs
   authErrorState = null
   emitAuthChange()
   try {
-    const user = await currentUser(options)
+    const user = await fetchCurrentUser(options)
     if (authRequestId === requestId) {
       currentUserState = user
       authErrorState = null
@@ -290,7 +290,7 @@ async function logoutRequest(options?: TalizenRequestOptions): Promise<void> {
   )
 }
 
-export async function currentUser(options?: TalizenRequestOptions): Promise<AuthUser | null> {
+async function fetchCurrentUser(options?: TalizenRequestOptions): Promise<AuthUser | null> {
   return requestJson<AuthUser | null>("/auth/me", { method: "GET" }, options)
 }
 
@@ -306,14 +306,6 @@ export async function updateProfile(
     },
     options,
   )
-}
-
-export async function requireUser(options?: TalizenRequestOptions): Promise<AuthUser> {
-  const user = await currentUser(options)
-  if (!user) {
-    throw new TalizenAuthError("Login required.")
-  }
-  return user
 }
 
 export async function listAuthProviders(options?: TalizenRequestOptions): Promise<AuthProvider[]> {
