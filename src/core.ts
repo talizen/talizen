@@ -58,12 +58,29 @@ export interface TalizenLocaleRuntime {
 let talizenConfig: TalizenClientConfig = {}
 const talizenConfigListeners = new Set<() => void>()
 
+function isShallowEqualConfig(a: TalizenClientConfig, b: TalizenClientConfig): boolean {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)])
+  for (const key of keys) {
+    if (!Object.is((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key])) {
+      return false
+    }
+  }
+  return true
+}
+
 export function setTalizenConfig(config: TalizenClientConfig): void {
-  talizenConfig = {
+  const merged = {
     ...talizenConfig,
     ...config,
   }
-  talizenConfigListeners.forEach(listener => listener())
+  // Only notify subscribers when the config actually changed. The render
+  // runtime may re-apply identical config repeatedly; without this guard each
+  // call would trigger a fresh auth refresh and other subscriber work.
+  const changed = !isShallowEqualConfig(talizenConfig, merged)
+  talizenConfig = merged
+  if (changed) {
+    talizenConfigListeners.forEach(listener => listener())
+  }
 }
 
 export function getTalizenConfig(): TalizenClientConfig {
