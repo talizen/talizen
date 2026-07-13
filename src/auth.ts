@@ -126,6 +126,7 @@ let isAuthLoading = false
 let authSnapshot: AuthSnapshot = readAuthSnapshot()
 let authRequestId = 0
 let isAuthConfigSubscriptionStarted = false
+let inflightRefresh: Promise<AuthUser | null> | null = null
 
 function readAuthSnapshot(): AuthSnapshot {
   return {
@@ -137,8 +138,23 @@ function readAuthSnapshot(): AuthSnapshot {
   }
 }
 
+function isSameSnapshot(a: AuthSnapshot, b: AuthSnapshot): boolean {
+  return (
+    a.user === b.user &&
+    a.loading === b.loading &&
+    a.error === b.error &&
+    a.isAuthenticated === b.isAuthenticated &&
+    a.isInitialized === b.isInitialized
+  )
+}
+
 function emitAuthChange() {
-  authSnapshot = readAuthSnapshot()
+  const next = readAuthSnapshot()
+  // Skip notifying subscribers when nothing actually changed. Background
+  // refreshes that return the same user must not trigger re-renders, and this
+  // keeps the `authSnapshot` reference stable for useSyncExternalStore.
+  if (isSameSnapshot(authSnapshot, next)) return
+  authSnapshot = next
   authListeners.forEach(listener => listener())
 }
 
@@ -191,43 +207,68 @@ function isSameAuthUser(a: AuthUser | null, b: AuthUser | null): boolean {
 }
 
 async function refreshAuthState(options?: TalizenRequestOptions): Promise<AuthUser | null> {
+  // Coalesce concurrent refreshes. Multiple mounted consumers plus config
+  // change notifications would otherwise each fire their own /auth/me; share
+  // a single in-flight request instead.
+  if (inflightRefresh) return inflightRefresh
+
   const requestId = authRequestId + 1
   authRequestId = requestId
-  isAuthLoading = true
-  authErrorState = null
-  emitAuthChange()
-  try {
-    let user = await fetchCurrentUser(options)
-    if (authRequestId === requestId) {
-      // Keep the previous reference when the payload is unchanged so `user`
-      // stays stable for React dependency arrays.
-      if (isSameAuthUser(currentUserState, user)) {
-        user = currentUserState
-      }
-      currentUserState = user
-      authErrorState = null
-      isAuthInitialized = true
-      isAuthLoading = false
-      emitAuthChange()
-    }
-    return user
-  } catch (error) {
-    if (authRequestId === requestId) {
-      currentUserState = null
-      authErrorState = isUnauthenticatedError(error) ? null : error
-      isAuthInitialized = true
-      isAuthLoading = false
-      emitAuthChange()
-    }
-    if (isUnauthenticatedError(error)) {
-      return null
-    }
-    throw error
+
+  // Only surface a loading state during the very first initialization.
+  // Background refreshes (mount of another consumer, config change, manual
+  // refresh) must NOT toggle `loading`, otherwise a consumer that renders a
+  // spinner while `loading` is true unmounts and remounts its whole subtree on
+  // every refresh — re-running mount effects and re-fetching in a loop.
+  if (!isAuthInitialized) {
+    isAuthLoading = true
+    authErrorState = null
+    emitAuthChange()
   }
+
+  let runPromise!: Promise<AuthUser | null>
+  runPromise = (async () => {
+    try {
+      let user = await fetchCurrentUser(options)
+      if (authRequestId === requestId) {
+        // Keep the previous reference when the payload is unchanged so `user`
+        // stays stable for React dependency arrays.
+        if (isSameAuthUser(currentUserState, user)) {
+          user = currentUserState
+        }
+        currentUserState = user
+        authErrorState = null
+        isAuthInitialized = true
+        isAuthLoading = false
+        emitAuthChange()
+      }
+      return user
+    } catch (error) {
+      if (authRequestId === requestId) {
+        currentUserState = null
+        authErrorState = isUnauthenticatedError(error) ? null : error
+        isAuthInitialized = true
+        isAuthLoading = false
+        emitAuthChange()
+      }
+      if (isUnauthenticatedError(error)) {
+        return null
+      }
+      throw error
+    } finally {
+      if (inflightRefresh === runPromise) inflightRefresh = null
+    }
+  })()
+
+  inflightRefresh = runPromise
+  return runPromise
 }
 
 function setAuthUser(user: AuthUser | null) {
+  // Invalidate any in-flight refresh so its late result cannot overwrite the
+  // authoritative login/logout/profile state.
   authRequestId += 1
+  inflightRefresh = null
   if (!isSameAuthUser(currentUserState, user)) {
     currentUserState = user
   }
