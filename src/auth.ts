@@ -103,9 +103,17 @@ async function loginRequest(
 
 export interface UseAuthResult {
   user: AuthUser | null
+  /**
+   * True until the first `/auth/me` fetch resolves — i.e. while the auth state
+   * is still unknown. This includes the window before the fetch has even
+   * started (first render, SSR), so `!loading && !user` reliably means
+   * "genuinely signed out" and is safe to use for redirect guards.
+   * Background refreshes never toggle this back to true.
+   */
   loading: boolean
   error: unknown
   isAuthenticated: boolean
+  /** True once the initial auth state has been resolved. Always `!loading`. */
   isInitialized: boolean
   refresh(): Promise<AuthUser | null>
   login(input: AuthPasswordInput): Promise<AuthUser>
@@ -122,7 +130,6 @@ const authListeners = new Set<() => void>()
 let currentUserState: AuthUser | null = null
 let authErrorState: unknown = null
 let isAuthInitialized = false
-let isAuthLoading = false
 let authSnapshot: AuthSnapshot = readAuthSnapshot()
 let authRequestId = 0
 let isAuthConfigSubscriptionStarted = false
@@ -131,7 +138,13 @@ let inflightRefresh: Promise<AuthUser | null> | null = null
 function readAuthSnapshot(): AuthSnapshot {
   return {
     user: currentUserState,
-    loading: isAuthLoading,
+    // `loading` is derived, not tracked: the auth state is "loading" exactly
+    // until the first initialization resolves. Deriving it from
+    // `isAuthInitialized` means the pre-initialization window (first render,
+    // SSR, before useAuth's mount effect fires the bootstrap /auth/me) already
+    // reports `loading: true` — so a consumer guard like `!loading && !user`
+    // can never misread "state unknown" as "signed out" and redirect-loop.
+    loading: !isAuthInitialized,
     error: authErrorState,
     isAuthenticated: !!currentUserState,
     isInitialized: isAuthInitialized,
@@ -215,13 +228,14 @@ async function refreshAuthState(options?: TalizenRequestOptions): Promise<AuthUs
   const requestId = authRequestId + 1
   authRequestId = requestId
 
-  // Only surface a loading state during the very first initialization.
-  // Background refreshes (mount of another consumer, config change, manual
-  // refresh) must NOT toggle `loading`, otherwise a consumer that renders a
-  // spinner while `loading` is true unmounts and remounts its whole subtree on
-  // every refresh — re-running mount effects and re-fetching in a loop.
-  if (!isAuthInitialized) {
-    isAuthLoading = true
+  // `loading` is derived from `isAuthInitialized` (see readAuthSnapshot), so
+  // the pre-initialization snapshot already reports `loading: true` — there is
+  // nothing to toggle here. Background refreshes (mount of another consumer,
+  // config change, manual refresh) must NOT surface a loading state, otherwise
+  // a consumer that renders a spinner while `loading` is true unmounts and
+  // remounts its whole subtree on every refresh — re-running mount effects and
+  // re-fetching in a loop.
+  if (!isAuthInitialized && authErrorState !== null) {
     authErrorState = null
     emitAuthChange()
   }
@@ -239,7 +253,6 @@ async function refreshAuthState(options?: TalizenRequestOptions): Promise<AuthUs
         currentUserState = user
         authErrorState = null
         isAuthInitialized = true
-        isAuthLoading = false
         emitAuthChange()
       }
       return user
@@ -248,7 +261,6 @@ async function refreshAuthState(options?: TalizenRequestOptions): Promise<AuthUs
         currentUserState = null
         authErrorState = isUnauthenticatedError(error) ? null : error
         isAuthInitialized = true
-        isAuthLoading = false
         emitAuthChange()
       }
       if (isUnauthenticatedError(error)) {
@@ -274,7 +286,6 @@ function setAuthUser(user: AuthUser | null) {
   }
   authErrorState = null
   isAuthInitialized = true
-  isAuthLoading = false
   emitAuthChange()
 }
 
