@@ -1,6 +1,6 @@
 {
   "name": "talizen",
-  "version": "0.2.23",
+  "version": "0.2.24",
   "description": "Talizen frontend SDK types for cms, form and core.",
   "type": "module",
   "license": "MIT",
@@ -62,7 +62,8 @@
     "build:watch": "tsc -p tsconfig.json --watch",
     "check": "tsc -p tsconfig.json --noEmit",
     "dev:serve": "serve dist -p 8787 --cors",
-    "dev": "concurrently \"bun run build:watch\" \"bun run dev:serve\""
+    "dev": "concurrently \"bun run build:watch\" \"bun run dev:serve\"",
+    "test": "node scripts/test-auth-loading.mjs"
   },
   "peerDependencies": {
     "react": ">=18"
@@ -75,7 +76,9 @@
   "devDependencies": {
     "@types/react": "^19.0.0",
     "concurrently": "^9.2.1",
+    "jsdom": "^29.1.1",
     "react": "^19.0.0",
+    "react-dom": "^19.2.7",
     "serve": "^14.2.4",
     "typescript": "^5.9.2"
   }
