@@ -1,4 +1,4 @@
-import { requestJson, type TalizenRequestOptions } from "./core.js"
+import { requestJson, resolveTalizenConfig, type TalizenRequestOptions } from "./core.js"
 
 export type TrackProps = Record<string, unknown>
 
@@ -12,6 +12,10 @@ export interface TrackOptions extends TalizenRequestOptions {}
  * request host — you do not pass a site id. The current page URL is attached
  * automatically. Visitor identity (for unique counts) is handled by a
  * first-party cookie on the server.
+ *
+ * Delivery prefers `navigator.sendBeacon`, so the event is reliably recorded
+ * even when the click navigates away (e.g. a link's onClick). Falls back to
+ * `fetch` with `keepalive` when sendBeacon is unavailable.
  *
  * Call it from client code only (event handlers, effects); it is a no-op during
  * SSR since there is no `window`.
@@ -29,18 +33,29 @@ export async function track(
   if (!eventName) return
   if (typeof window === "undefined") return
 
+  const body = JSON.stringify({
+    name: eventName,
+    url: window.location?.href,
+    props: props ?? {},
+  })
+
+  // Prefer sendBeacon: the browser queues it and delivers it even as the page
+  // unloads, so events survive a click that navigates away.
+  try {
+    if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+      const baseUrl = resolveTalizenConfig(options).baseUrl.replace(/\/+$/, "")
+      const ok = navigator.sendBeacon(`${baseUrl}/site_event`, new Blob([body], { type: "application/json" }))
+      if (ok) return
+    }
+  }
+  catch {
+    // fall through to fetch
+  }
+
   try {
     await requestJson<unknown>(
       "/site_event",
-      {
-        method: "POST",
-        keepalive: true,
-        body: JSON.stringify({
-          name: eventName,
-          url: window.location?.href,
-          props: props ?? {},
-        }),
-      },
+      { method: "POST", keepalive: true, body },
       options,
     )
   }
