@@ -42,10 +42,14 @@ function readI18nRuntimeConfig(): I18nSnapshot {
 function normalizeLocaleRuntime(value: Partial<LocaleRuntime> | undefined): LocaleRuntime {
   const d = value ?? {}
   const locales = Array.isArray(d.locales) ? d.locales.filter((l): l is string => typeof l === "string") : []
+  const defaultLocale = typeof d.defaultLocale === "string" ? d.defaultLocale : (locales[0] ?? "")
   return {
     locale: typeof d.locale === "string" ? d.locale : "",
     locales,
-    defaultLocale: typeof d.defaultLocale === "string" ? d.defaultLocale : (locales[0] ?? ""),
+    defaultLocale,
+    // 未配置 domains（无 routingDefaultLocale）时回退到 defaultLocale，单域名站点行为不变。
+    routingDefaultLocale:
+      typeof d.routingDefaultLocale === "string" && d.routingDefaultLocale !== "" ? d.routingDefaultLocale : defaultLocale,
   }
 }
 
@@ -96,7 +100,10 @@ export function localizedPath(path: string, locale?: string): string {
   if (/^([a-z][a-z0-9+.-]*:)?\/\//i.test(path) || path.startsWith("#")) return path
   const rt = readLocaleRuntime()
   const target = locale ?? rt.locale
-  if (!target || target === rt.defaultLocale) return path
+  // 用「当前域名的无前缀语言」判断是否省略前缀：domain routing 下 routingDefaultLocale
+  // 可能不是站点级 defaultLocale（如 www.creght.com 上为 en，而 defaultLocale 为 zh-CN）。
+  const noPrefixLocale = rt.routingDefaultLocale || rt.defaultLocale
+  if (!target || target === noPrefixLocale) return path
   const p = path.startsWith("/") ? path : `/${path}`
   return p === "/" ? `/${target}` : `/${target}${p}`
 }
