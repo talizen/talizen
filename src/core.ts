@@ -53,6 +53,12 @@ export interface TalizenLocaleRuntime {
   locale: string
   locales: string[]
   defaultLocale: string
+  /**
+   * 当前域名的「无前缀」默认语言。domain routing 下与 defaultLocale 可能不同：
+   * defaultLocale 是内容基准语言（CMS _i18n fallback base），routingDefaultLocale 是当前 host
+   * 不带前缀时代表的语言（如 www.creght.com 上为 en）。由渲染引擎写入；未配置 domains 时等于 defaultLocale。
+   */
+  routingDefaultLocale: string
 }
 
 let talizenConfig: TalizenClientConfig = {}
