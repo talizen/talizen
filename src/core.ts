@@ -38,6 +38,11 @@ export interface TalizenClientConfig {
   onFileUploadProcess?: TalizenFileUploadProcessCallback
   i18n?: Partial<TalizenLocaleRuntime>
   messages?: Record<string, unknown>
+  /**
+   * 当前页面路径（已去掉语言前缀），由渲染引擎注入，供 usePathname / getLocalePath 读取。
+   * SSR 与客户端注入同一值以避免水合不一致。
+   */
+  pathname?: string
 }
 
 export interface TalizenRequestOptions extends TalizenClientConfig {

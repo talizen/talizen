@@ -4,6 +4,7 @@ export * from "./cms.js"
 export * from "./captcha-ui.js"
 export * from "./form.js"
 export * from "./i18n.js"
+export * from "./router.js"
 export * from "./server-runtime.js"
 export * from "./analytics.js"
 
