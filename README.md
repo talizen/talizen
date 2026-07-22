@@ -157,24 +157,94 @@ await invoke("booking", { email: "hi@talizen.com" });
 
 ### Server-side page context
 
-In `getServerSideProps`, use the injected server context for request metadata
-and cookies. Do not import `talizen/auth` or `talizen/func`, and do not read
-auth state or call Func from server-side page code:
+In `getServerSideProps`, the render engine injects a typed context with request
+metadata, route params, query, locale, and cookies. Type the whole function with
+`GetServerSideProps<Props, Params>` (and infer the page props with
+`InferGetServerSidePropsType`) — never leave `ctx` as `any`:
 
-```ts
-import type { TalizenServerSideContext } from "talizen/server-runtime";
+```tsx
+import type { GetServerSideProps, InferGetServerSidePropsType } from "talizen";
 
-export async function getServerSideProps(ctx: TalizenServerSideContext) {
-  return { props: { path: ctx.request.path } };
+export const getServerSideProps: GetServerSideProps<{ slug: string }, { slug: string }> = async (ctx) => {
+  const token = ctx.cookies.get("session");
+  return { props: { slug: ctx.params.slug } };
+};
+
+export default function Page(props: InferGetServerSidePropsType<typeof getServerSideProps>) {
+  return <main>{props.slug}</main>;
 }
 ```
 
-Server-side context supports `ctx.request` and `ctx.cookies`. It intentionally
-does not expose `ctx.auth`, `ctx.db`, `ctx.cache`, or `ctx.func`. This keeps
-HTML render caching predictable: cookie reads can use cookie-vary, cookie
-writes are no-store, and user-specific auth/Func reads do not become hidden SSR
-cache dependencies. Put login UI, private business data access, writes, and
-custom backend actions in browser-side SDK/Func/API flows.
+Or type just the parameter with `TalizenServerSideContext<{ slug: string }>` (from
+`talizen` or `talizen/server-runtime`).
+
+Context fields:
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `ctx.params` | `Params` (default `Record<string, string>`) | Dynamic route params, e.g. `[slug]`. |
+| `ctx.searchParams` | `Record<string, string>` | Query string; multi-value keys keep the first value. |
+| `ctx.request` | object | Current request: `host`, `ip`, `method`, `path`, `url` (= `path`), `headers.get()/has()`, `cookies.get()/has()`. |
+| `ctx.cookies` | object | Read/write cookies: `get`, `has`, `set`, `delete`. Writes make the render no-store. |
+| `ctx.locale` / `ctx.locales` / `ctx.defaultLocale` | `string` / `string[]` / `string` | Current / all / content-base locales (multilingual sites only). |
+| `ctx.routingDefaultLocale` | `string` | The current host's no-prefix locale (domain routing); equals `defaultLocale` without domains. |
+
+Deprecated aliases kept for compatibility: `ctx.req` (= `ctx.request`), `ctx.query`
+(= `ctx.searchParams`), and `ctx.request.cookies` (read-only; prefer the top-level
+`ctx.cookies`). For host use `ctx.request.host` — there is no top-level `ctx.host`.
+
+The context intentionally does not expose `ctx.auth`, `ctx.db`, `ctx.cache`, or
+`ctx.func`. This keeps HTML render caching predictable: cookie reads can use
+cookie-vary, cookie writes are no-store, and user-specific auth/Func reads do not
+become hidden SSR cache dependencies. Do not import `talizen/auth` or
+`talizen/func` in server-side page code; put login UI, private data access,
+writes, and custom backend actions in browser-side SDK/Func/API flows.
+
+### Current path and language switching
+
+`talizen/router` (also re-exported from `talizen`) exposes the current route,
+mirroring `next/navigation`. Paths are locale-stripped and SSR-safe: they read the
+engine-injected pathname, and on the client fall back to stripping
+`window.location.pathname` by the configured locales.
+
+```tsx
+import { usePathname, getPathname } from "talizen";
+
+// usePathname(): current locale-stripped path in a component; /en/blog -> "/blog".
+function Nav() {
+  const pathname = usePathname();
+  return <a href="/blog" aria-current={pathname === "/blog" || undefined}>Blog</a>;
+}
+
+// getPathname(): non-hook version for getServerSideProps / event callbacks.
+```
+
+For a language switcher, pair `getLocalePath()` with the locale-aware `<Link>` so
+it stays on the current page — `<Link locale>` adds the target prefix (the default
+locale gets none) and writes the `CREGHT_LOCALE` cookie:
+
+```tsx
+import { Link, useLocale, getLocalePath } from "talizen";
+
+function LanguageSwitcher() {
+  const { locale: active, locales } = useLocale();
+  const href = getLocalePath(); // current page's locale-less path + query/hash
+  return (
+    <nav>
+      {locales.map((locale) => (
+        <Link key={locale} href={href} locale={locale} aria-current={locale === active || undefined}>
+          {locale}
+        </Link>
+      ))}
+    </nav>
+  );
+}
+```
+
+`getLocalePath()` returns the current locale-stripped path plus `query`/`hash`; do
+not hardcode `href="/"` for a switcher (that always lands on the home page). There
+is no `useRouter`: Talizen navigates with native anchors (MPA), not a client-side
+router.
 
 ### Write function runtime code
 
@@ -227,6 +297,7 @@ Func HTTP responses use the HTTP status code rather than a top-level `ok` field.
 - `talizen/func`: custom function invocation helpers such as `invoke`.
 - `talizen/func-runtime`: Func-runtime-only `ctx` capability types.
 - `talizen/server-runtime`: getServerSideProps-only `ctx` capability types.
+- `talizen/router`: current-path and navigation helpers — `usePathname`, `getPathname`, `getLocalePath`.
 
 ## Publish
 
