@@ -1,6 +1,6 @@
 {
   "name": "talizen",
-  "version": "0.2.30",
+  "version": "0.2.31",
   "description": "Talizen frontend SDK types for cms, form and core.",
   "type": "module",
   "license": "MIT",
@@ -40,6 +40,10 @@
       "types": "./form.d.ts",
       "import": "./form.js"
     },
+    "./assets": {
+      "types": "./assets.d.ts",
+      "import": "./assets.js"
+    },
     "./func": {
       "types": "./func.d.ts",
       "import": "./func.js"
@@ -71,7 +75,7 @@
     "check": "tsc -p tsconfig.json --noEmit",
     "dev:serve": "serve dist -p 8787 --cors",
     "dev": "concurrently \"bun run build:watch\" \"bun run dev:serve\"",
-    "test": "node scripts/test-auth-loading.mjs"
+    "test": "node scripts/test-auth-loading.mjs && node scripts/test-assets-upload.mjs"
   },
   "peerDependencies": {
     "react": ">=18"

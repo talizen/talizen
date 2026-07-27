@@ -6,6 +6,7 @@ Talizen's frontend SDK package. It provides a small runtime client and shared ty
 - `talizen/auth`
 - `talizen/cms`
 - `talizen/form`
+- `talizen/assets`
 - `talizen/func`
 - `talizen/func-runtime`
 
@@ -108,6 +109,38 @@ When a `File` object appears in the payload, `submitForm()` will:
 2. If `hash_exist` is `false`, upload the file to the returned S3 signed URL
 3. Replace the original `File` value with the returned `file_url`
 4. Submit the final payload to `/form/:key/submit`
+
+### Upload a browser file to the CDN
+
+Use `talizen/assets` when a page needs to upload an image or another browser
+file independently of a form:
+
+```ts
+import { uploadAsset } from "talizen/assets";
+
+const asset = await uploadAsset(file, {
+  onFileUploadProcess(key, progress) {
+    console.log(key, progress);
+  },
+});
+
+console.log(asset.fileUrl);
+```
+
+`uploadAsset()` hashes the file, requests a short-lived signed upload URL,
+uploads the bytes directly from the browser to CDN storage, and confirms the
+upload with Talizen. It does not send the file through Func or encode it as
+base64. Duplicate content can reuse an existing uploaded object. The progress
+callback's `key` is the uploaded file name.
+
+Both `File` and `Blob` are accepted. When passing a `Blob`, provide its name:
+
+```ts
+await uploadAsset(blob, { fileName: "avatar.webp" });
+```
+
+Signed browser upload is available on published site domains. Preview domains
+currently reject file uploads.
 
 ### Login users
 
