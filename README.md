@@ -140,8 +140,7 @@ Both `File` and `Blob` are accepted. When passing a `Blob`, provide its name:
 await uploadAsset(blob, { fileName: "avatar.webp" });
 ```
 
-Signed browser upload is available on published site domains. Preview domains
-currently reject file uploads.
+Signed browser upload is available on both preview and published site domains.
 
 ### Login users
 
