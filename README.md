@@ -155,6 +155,34 @@ const result = await invoke<{ ok: boolean; id: string }>("booking.create", {
 await invoke("booking", { email: "hi@talizen.com" });
 ```
 
+For incremental SSE output, use the native Fetch stream API:
+
+```ts
+const response = await fetch("/func/writer?stream=1&timeout_ms=120000", {
+  method: "POST",
+  headers: {
+    Accept: "text/event-stream",
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({ prompt }),
+});
+if (!response.ok || !response.body) throw new Error("Func stream failed");
+const reader = response.body.getReader();
+const decoder = new TextDecoder();
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+  const sseChunk = decoder.decode(value, { stream: true });
+  // Parse the native SSE frames: event: ..., data: ..., blank line.
+}
+```
+
+Read chunks are arbitrary byte boundaries, not complete events; buffer across
+reads and split SSE frames only on a blank line.
+
+The stream ends with a platform `done` event or an `error` event. Once a Func
+sends its first event, it can no longer set or delete cookies.
+
 ### Server-side page context
 
 In `getServerSideProps`, the render engine injects a typed context with request
@@ -263,6 +291,16 @@ export function create(input: { title: string }, ctx: TalizenFuncContext) {
   });
   ctx.cache.set(`book:${row.id}`, row, 60);
   return { ok: true, id: row.id };
+}
+```
+
+Stream bounded incremental work with `ctx.sse.send()`:
+
+```ts
+export async function main(input: { prompt: string }, ctx: TalizenFuncContext) {
+  ctx.sse.send("token", { text: "Hello" });
+  ctx.sse.send({ event: "token", data: { text: " world" } });
+  return { ok: true };
 }
 ```
 

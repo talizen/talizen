@@ -111,6 +111,21 @@ export interface FuncCookieRuntime {
   }
 }
 
+export interface FuncSSESendOptions {
+  id?: string
+  retry?: number
+}
+
+export interface FuncSSEEvent<T = unknown> extends FuncSSESendOptions {
+  event?: string
+  data?: T
+}
+
+export interface FuncSSERuntime {
+  send<T = unknown>(event: string, data?: T, options?: FuncSSESendOptions): { ok: boolean }
+  send<T = unknown>(event: FuncSSEEvent<T>): { ok: boolean }
+}
+
 export interface TalizenFuncContext {
   trace_id: string
   extra?: Record<string, unknown>
@@ -120,4 +135,5 @@ export interface TalizenFuncContext {
   auth: FuncAuthRuntime
   cache: FuncCacheRuntime
   cookies: FuncCookieRuntime
+  sse: FuncSSERuntime
 }
