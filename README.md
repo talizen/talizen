@@ -125,6 +125,7 @@ const asset = await uploadAsset(file, {
 });
 
 console.log(asset.fileUrl);
+console.log(asset.url); // Compatibility alias of fileUrl.
 ```
 
 `uploadAsset()` hashes the file, requests a short-lived signed upload URL,
@@ -310,6 +311,7 @@ router.
 ### Write function runtime code
 
 Func code can use TypeScript and import Func authoring types from `talizen/func-runtime`.
+This exact package name is required; there is no `@talizen/func-runtime` package.
 Runtime capabilities are passed through `ctx`:
 
 ```ts
@@ -353,7 +355,16 @@ export function list(input: { offset?: number }, ctx: TalizenFuncContext) {
 }
 ```
 
-`ctx.db`, `ctx.cache`, `ctx.auth`, `ctx.request`, and `ctx.cookies` are injected by the Talizen Func runtime. `talizen/func-runtime` is a type-only authoring module; do not import runtime values from it.
+Func-generated files can be uploaded with `ctx.assets`. Both URL fields are
+provided for compatibility and contain the same value; internal storage paths
+are not exposed:
+
+```ts
+const asset = ctx.assets.upload({ filename, mimeType, base64 });
+// { fileUrl: string, url: string, size: number }
+```
+
+`ctx.db`, `ctx.cache`, `ctx.auth`, `ctx.assets`, `ctx.request`, and `ctx.cookies` are injected by the Talizen Func runtime. `talizen/func-runtime` is a type-only authoring module; do not import runtime values from it.
 
 `ctx.request` exposes Fetch-style one-shot body readers. Use `await ctx.request.text()` when a webhook signature must be verified against the exact request bytes, `await ctx.request.json()` for parsed JSON, or `await ctx.request.arrayBuffer()` for binary input. Reading the body sets `ctx.request.bodyUsed`; a second read rejects. `ctx.response.status(code)` sets the actual HTTP response status (100-599), including statuses returned when a Func throws after setting the status. The runtime also provides `TextEncoder` and the HMAC SHA-256 subset of `crypto.subtle` (`importKey`, `sign`, and `verify`) for webhook verification.
 

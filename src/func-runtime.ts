@@ -67,7 +67,8 @@ export interface FuncAssetUploadInput {
 
 export interface FuncUploadedAsset {
   fileUrl: string
-  filePath: string
+  /** Compatibility alias of fileUrl. */
+  url: string
   size: number
 }
 
