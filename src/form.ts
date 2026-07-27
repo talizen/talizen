@@ -6,33 +6,17 @@ import {
   type CaptchaUiTheme,
 } from "./captcha-ui.js"
 import {
-  normalizeRequestMethod,
   requestJson,
-  resolveTalizenConfig,
-  stripUrlQuery,
   TalizenHttpError,
   type TalizenRequestOptions,
 } from "./core.js"
+import { uploadWithSignedUrl } from "./signed-upload.js"
 
 export type { CaptchaChallenge as FormCaptcha, CaptchaUiTheme as FormCaptchaUiTheme } from "./captcha-ui.js"
 
 export interface FormRecord {
   readonly __formKey?: string
   [key: string]: unknown
-}
-
-interface PreuploadResponse {
-  hash_exist?: boolean
-  presigned_url?: string
-  file_path?: string
-  file_url?: string
-  id?: number
-}
-
-interface NormalizedPreuploadResponse {
-  hashExist: boolean
-  uploadUrl?: string
-  fileUrl: string
 }
 
 export interface SubmitFormOptions extends TalizenRequestOptions {
@@ -167,167 +151,14 @@ async function uploadFile(
   file: File,
   options?: TalizenRequestOptions,
 ): Promise<string> {
-  const resolved = resolveTalizenConfig(options)
-  notifyUploadProcess(resolved, fieldKey, 0)
-
-  const preupload = await requestJson<PreuploadResponse>(
+  const target = await uploadWithSignedUrl(
     `/form/${formKey}/file/preupload`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        file_name: file.name,
-        hash: await sha256(file),
-        mimetype: file.type || "application/octet-stream",
-        file_size: file.size,
-      }),
-    },
+    file,
+    file.name,
+    fieldKey,
     options,
   )
-
-  const target = normalizePreuploadResponse(preupload)
-  await uploadToSignedUrl(target, file, fieldKey, resolved)
-  notifyUploadProcess(resolved, fieldKey, 1)
-
   return target.fileUrl
-}
-
-function normalizePreuploadResponse(response: PreuploadResponse): NormalizedPreuploadResponse {
-  const hashExist = response.hash_exist === true
-  const uploadUrl = getString(response.presigned_url)
-  const fileUrl = getString(response.file_url)
-
-  if (fileUrl == null) {
-    throw new Error("Talizen preupload response is missing file_url.")
-  }
-
-  if (!hashExist && uploadUrl == null) {
-    throw new Error("Talizen preupload response is missing presigned_url.")
-  }
-
-  return {
-    hashExist,
-    uploadUrl,
-    fileUrl,
-  }
-}
-
-async function uploadToSignedUrl(
-  target: NormalizedPreuploadResponse,
-  file: File,
-  fieldKey: string,
-  options: TalizenRequestOptions,
-): Promise<void> {
-  if (target.hashExist || target.uploadUrl == null) {
-    return
-  }
-
-  if (typeof XMLHttpRequest === "function") {
-    await uploadWithXhr(target, file, fieldKey, options)
-    return
-  }
-
-  const resolved = resolveTalizenConfig(options)
-  const headers = new Headers()
-  const body: BodyInit = file
-  const request = {
-    method: normalizeRequestMethod("PUT"),
-    url: stripUrlQuery(target.uploadUrl),
-  }
-
-  if (file.type) {
-    headers.set("content-type", file.type)
-  }
-
-  const response = await resolved.fetch(target.uploadUrl, {
-    method: "PUT",
-    headers,
-    body,
-    signal: resolved.signal,
-  })
-
-  if (!response.ok) {
-    const text = await response.text()
-    throw new Error(formatUploadError(request, `${response.status} ${response.statusText} ${text}`))
-  }
-}
-
-function uploadWithXhr(
-  target: NormalizedPreuploadResponse,
-  file: File,
-  fieldKey: string,
-  options: TalizenRequestOptions,
-): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest()
-    const signal = options.signal
-    const body: XMLHttpRequestBodyInit = file
-    const request = {
-      method: normalizeRequestMethod("PUT"),
-      url: stripUrlQuery(target.uploadUrl ?? ""),
-    }
-
-    xhr.open("PUT", target.uploadUrl ?? "")
-
-    if (file.type) {
-      xhr.setRequestHeader("content-type", file.type)
-    }
-
-    xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable) {
-        notifyUploadProcess(options, fieldKey, event.loaded / event.total)
-      }
-    }
-
-    xhr.onload = () => {
-      cleanup()
-
-      if (xhr.status >= 200 && xhr.status < 300) {
-        resolve()
-        return
-      }
-
-      reject(new Error(formatUploadError(request, `${xhr.status} ${xhr.statusText} ${xhr.responseText}`)))
-    }
-
-    xhr.onerror = () => {
-      cleanup()
-      reject(new Error(formatUploadError(request, "network error")))
-    }
-
-    xhr.onabort = () => {
-      cleanup()
-      reject(createAbortError())
-    }
-
-    const abort = () => xhr.abort()
-    const cleanup = () => signal?.removeEventListener("abort", abort)
-
-    signal?.addEventListener("abort", abort, { once: true })
-    xhr.send(body)
-  })
-}
-
-function formatUploadError(request: { method: string; url: string }, detail: string): string {
-  return `Talizen file upload failed: ${request.method} ${request.url} ${detail}`.replace(/\s+/g, " ").trim()
-}
-
-async function sha256(file: File): Promise<string> {
-  const subtle = globalThis.crypto?.subtle
-
-  if (subtle == null) {
-    throw new Error("Talizen file upload requires Web Crypto support.")
-  }
-
-  const digest = await subtle.digest("SHA-256", await file.arrayBuffer())
-  return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, "0")).join("")
-}
-
-function notifyUploadProcess(options: Pick<TalizenRequestOptions, "onFileUploadProcess"> | undefined, key: string, process: number): void {
-  options?.onFileUploadProcess?.(key, clampProcess(process))
-}
-
-function clampProcess(process: number): number {
-  return Math.min(1, Math.max(0, process))
 }
 
 function joinPath(parent: string, key: string): string {
@@ -340,18 +171,4 @@ function isFile(value: unknown): value is File {
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Object.prototype.toString.call(value) === "[object Object]"
-}
-
-function getString(value: unknown): string | undefined {
-  return typeof value === "string" && value !== "" ? value : undefined
-}
-
-function createAbortError(): Error {
-  if (typeof DOMException === "function") {
-    return new DOMException("The operation was aborted.", "AbortError")
-  }
-
-  const error = new Error("The operation was aborted.")
-  error.name = "AbortError"
-  return error
 }

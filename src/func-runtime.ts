@@ -59,6 +59,22 @@ export interface FuncAuthRuntime {
   requireUser(): AuthUser
 }
 
+export interface FuncAssetUploadInput {
+  filename: string
+  mimeType: string
+  base64: string
+}
+
+export interface FuncUploadedAsset {
+  fileUrl: string
+  filePath: string
+  size: number
+}
+
+export interface FuncAssetsRuntime {
+  upload(input: FuncAssetUploadInput): FuncUploadedAsset
+}
+
 export interface CacheSetOptions {
   ttl?: number
   ttlSeconds?: number
@@ -133,6 +149,7 @@ export interface TalizenFuncContext {
   response: FuncResponseRuntime
   db: FuncDbRuntime
   auth: FuncAuthRuntime
+  assets: FuncAssetsRuntime
   cache: FuncCacheRuntime
   cookies: FuncCookieRuntime
   sse: FuncSSERuntime
