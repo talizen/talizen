@@ -8,7 +8,8 @@ export interface UploadAssetOptions extends TalizenRequestOptions {
 
 export interface UploadedAsset {
   fileUrl: string
-  filePath?: string
+  /** Compatibility alias of fileUrl. */
+  url: string
   fileName: string
   mimeType: string
   size: number
@@ -49,7 +50,7 @@ export async function uploadAsset(file: File | Blob, options?: UploadAssetOption
 
   return {
     fileUrl: target.fileUrl,
-    filePath: target.filePath,
+    url: target.fileUrl,
     fileName,
     mimeType: file.type || "application/octet-stream",
     size: file.size,
