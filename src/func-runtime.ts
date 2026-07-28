@@ -90,6 +90,59 @@ export interface FuncCacheRuntime {
   expire(key: string, ttlSeconds: number): { ok?: boolean }
 }
 
+export interface FuncEmailSendInput {
+  /** A single address or a list; at most 50 recipients per send. */
+  to: string | string[]
+  subject: string
+  html?: string
+  text?: string
+  /** Defaults to the from address configured on the email integration. */
+  from?: string
+  /** Defaults to the reply-to address configured on the email integration. */
+  replyTo?: string
+}
+
+export interface FuncSentEmail {
+  /** Provider-side message id. */
+  id: string
+  /** Provider that delivered the message, e.g. "resend". */
+  provider: string
+}
+
+export interface FuncEmailCodeInput {
+  to: string
+  /** Namespaces the code by purpose, e.g. "login" or "reset_password". */
+  scene?: string
+}
+
+export interface FuncEmailCodeSent {
+  sent: boolean
+  /** Seconds until the code expires. */
+  expiresIn: number
+  provider: string
+}
+
+export interface FuncEmailVerifyCodeInput extends FuncEmailCodeInput {
+  code: string
+}
+
+/**
+ * Email capability, available once an email integration is connected for the
+ * project. The provider credential stays on the server: Func code never holds
+ * or receives an API key.
+ */
+export interface FuncEmailRuntime {
+  send(input: FuncEmailSendInput): FuncSentEmail
+  /**
+   * Generates and sends a verification code. Code length, expiry, per-recipient
+   * rate limiting and the wrong-attempt cap are enforced by the platform.
+   */
+  sendCode(input: FuncEmailCodeInput): FuncEmailCodeSent
+  /** Checks a code; a matching code is consumed and cannot be reused. */
+  verifyCode(input: FuncEmailVerifyCodeInput): boolean
+  verifyCode(to: string, code: string): boolean
+}
+
 export interface FuncReadonlyStringMap {
   get(name: string): string | null
 }
@@ -186,6 +239,7 @@ export interface TalizenFuncContext {
   auth: FuncAuthRuntime
   assets: FuncAssetsRuntime
   cache: FuncCacheRuntime
+  email: FuncEmailRuntime
   cookies: FuncCookieRuntime
   sse: FuncSSERuntime
 }
