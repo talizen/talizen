@@ -111,6 +111,40 @@ export interface FuncResponseRuntime {
   status(code: number): void
 }
 
+/** Body types accepted by the Func runtime's global Response constructor. */
+export type FuncHTTPResponseBody = string | ArrayBuffer | Uint8Array | null
+
+export interface FuncHTTPResponseInit {
+  status?: number
+  statusText?: string
+  headers?: Record<string, string>
+}
+
+/**
+ * A Web-compatible HTTP response returned directly from a Func.
+ * Returning it bypasses the normal `{ result: ... }` JSON envelope.
+ */
+export interface FuncHTTPResponse {
+  readonly status: number
+  readonly statusText: string
+  readonly ok: boolean
+  readonly headers: Pick<Headers, "get" | "forEach">
+  readonly body: null
+  readonly bodyUsed: boolean
+  text(): Promise<string>
+  json<T = unknown>(): Promise<T>
+  arrayBuffer(): Promise<ArrayBuffer>
+}
+
+/** Type of the Web-compatible global `Response` available inside Func. */
+export interface FuncHTTPResponseConstructor {
+  new (body?: FuncHTTPResponseBody, init?: FuncHTTPResponseInit): FuncHTTPResponse
+}
+
+/** Importable aliases for Func code that wants an explicit response type. */
+export type Response = FuncHTTPResponse
+export type ResponseInit = FuncHTTPResponseInit
+
 export interface FuncCookieSetOptions {
   path?: string
   domain?: string

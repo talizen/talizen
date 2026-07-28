@@ -365,9 +365,21 @@ const asset = ctx.assets.upload({ filename, mimeType, base64 });
 
 `ctx.db`, `ctx.cache`, `ctx.auth`, `ctx.assets`, `ctx.request`, and `ctx.cookies` are injected by the Talizen Func runtime. `talizen/func-runtime` is a type-only authoring module; do not import runtime values from it.
 
-`ctx.request` exposes Fetch-style one-shot body readers. Use `await ctx.request.text()` when a webhook signature must be verified against the exact request bytes, `await ctx.request.json()` for parsed JSON, or `await ctx.request.arrayBuffer()` for binary input. Reading the body sets `ctx.request.bodyUsed`; a second read rejects. `ctx.response.status(code)` sets the actual HTTP response status (100-599), including statuses returned when a Func throws after setting the status. The runtime also provides `TextEncoder` and the HMAC SHA-256 subset of `crypto.subtle` (`importKey`, `sign`, and `verify`) for webhook verification.
+`ctx.request` exposes Fetch-style one-shot body readers. Use `await ctx.request.text()` when a webhook signature must be verified against the exact request bytes, `await ctx.request.json()` for parsed JSON, or `await ctx.request.arrayBuffer()` for binary input. JSON, form-encoded, text, and binary POST bodies reach Func; non-JSON requests receive `{}` as `input` while their exact bytes remain available through `ctx.request`. Reading the body sets `ctx.request.bodyUsed`; a second read rejects. `ctx.response.status(code)` sets the actual HTTP response status (100-599), including statuses returned when a Func throws after setting the status. The runtime also provides `TextEncoder`, Base64 helpers, and Web Crypto algorithms used by webhook verification, including HMAC and RSA2.
 
-Func HTTP responses use the HTTP status code rather than a top-level `ok` field. Successful responses contain `{ result: ... }`; failed responses contain `{ error: ... }`. `invoke()` unwraps `result` for callers.
+Ordinary Func returns produce `{ result: ... }` or `{ error: ... }`; `invoke()` unwraps successful results. Return the global Web-compatible `Response` when an HTTP caller requires an exact status, content type, headers, or body. This bypasses the JSON envelope:
+
+```ts
+export async function webhook(_input, ctx) {
+  await verifyWebhook(await ctx.request.text());
+  return new Response("success"); // 200, text/plain;charset=UTF-8
+}
+```
+
+Use native `fetch()` rather than `invoke()` when calling a Func method that returns a `Response`.
+The constructor is a runtime global and does not need an import. For explicit
+annotations, `talizen/func-runtime` exports the type-only `Response` and
+`ResponseInit` aliases.
 
 ## Package Layout
 
