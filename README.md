@@ -170,6 +170,28 @@ function AccountBadge() {
 }
 ```
 
+### Sign up with a verified email
+
+Whether registration requires a proven contact is **project policy**
+(`register_requires` in the project's auth settings), not an argument of
+`register`. When it requires `email`, prove the address first:
+
+```ts
+import { startVerification, confirmVerification, useAuth } from "talizen/auth";
+
+await startVerification({ channel: "email", to: email, purpose: "register" });
+// ...user types the code they received
+await confirmVerification({ channel: "email", to: email, purpose: "register", code });
+
+// No code or proof argument: the browser carries an httpOnly proof cookie and the
+// server checks it. Registering with a different address than the one proven fails.
+await useAuth().register({ account: email, email, password });
+```
+
+The proof is single-use, bound to that address and purpose, and expires in ten
+minutes. Projects with an empty policy are unaffected — `register` behaves exactly
+as before, and `user.email_verified_at` stays null.
+
 ### Invoke a custom function
 
 ```ts
