@@ -190,7 +190,11 @@ await useAuth().register({ account: email, email, password });
 
 The proof is single-use, bound to that address and purpose, and expires in ten
 minutes. Projects with an empty policy are unaffected — `register` behaves exactly
-as before, and `user.email_verified_at` stays null.
+as before.
+
+This applies to page-code registration. When a project routes registration through
+its own Func (`register_entry: "func"`), verification is performed by that Func's
+own code instead, and `startVerification` from page code is refused.
 
 ### Invoke a custom function
 
