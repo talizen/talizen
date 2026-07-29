@@ -380,6 +380,67 @@ export async function updateProfile(
   )
 }
 
+/**
+ * A contact channel that can be proven. `sms` is not available yet and errors
+ * explicitly rather than silently falling back to email.
+ */
+export type VerificationChannel = "email" | "sms"
+
+/**
+ * What the proof will be used for. A proof is bound to one purpose: a code sent
+ * for `reset` cannot complete a registration.
+ */
+export type VerificationPurpose = "register" | "login" | "reset" | "bind"
+
+export interface VerificationStartInput {
+  channel: VerificationChannel
+  /** The address (or number) being proven. */
+  to: string
+  purpose: VerificationPurpose
+}
+
+export interface VerificationConfirmInput extends VerificationStartInput {
+  code: string
+}
+
+/**
+ * Send a verification code for `purpose`.
+ *
+ * This is not `ctx.email.sendCode`: the outcome of confirming this code is
+ * recorded by the platform and consumed by auth, so it can gate registration.
+ */
+export async function startVerification(
+  input: VerificationStartInput,
+  options?: TalizenRequestOptions,
+): Promise<{ sent: boolean; expires_in: number }> {
+  return requestJson<{ sent: boolean; expires_in: number }>(
+    "/auth/verification/start",
+    { method: "POST", body: JSON.stringify(input) },
+    options,
+  )
+}
+
+/**
+ * Confirm the code. On success the platform stores a single-use proof and sets
+ * an httpOnly cookie holding an opaque ticket.
+ *
+ * Nothing about the proof is returned to page code, and nothing needs to be:
+ * pass no extra argument to `register` — the browser carries the proof
+ * automatically, and the server checks it against the project's policy. A proof
+ * is bound to this exact `to` and `purpose`, is single-use, and expires in ten
+ * minutes.
+ */
+export async function confirmVerification(
+  input: VerificationConfirmInput,
+  options?: TalizenRequestOptions,
+): Promise<{ ok: boolean; expires_in: number }> {
+  return requestJson<{ ok: boolean; expires_in: number }>(
+    "/auth/verification/confirm",
+    { method: "POST", body: JSON.stringify(input) },
+    options,
+  )
+}
+
 export async function listAuthProviders(options?: TalizenRequestOptions): Promise<AuthProvider[]> {
   const response = await requestJson<AuthProviderListResponse>(
     "/auth/provider_list",
