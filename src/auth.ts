@@ -22,7 +22,6 @@ export interface AuthUser {
   avatar?: string
   status?: string
   profile?: AuthProfile
-  email_verified_at?: string | null
   last_login_at?: string | null
   created_at?: string
   updated_at?: string
