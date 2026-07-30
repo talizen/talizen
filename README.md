@@ -416,7 +416,69 @@ wrong-attempt cap, and single-use consumption are enforced by the platform — d
 not reimplement them in Func code. `scene` namespaces codes by purpose, so a
 login code and a password-reset code for the same address never collide.
 
-`ctx.db`, `ctx.cache`, `ctx.auth`, `ctx.assets`, `ctx.email`, `ctx.request`, and `ctx.cookies` are injected by the Talizen Func runtime. `talizen/func-runtime` is a type-only authoring module; do not import runtime values from it.
+`ctx.auth` covers two different scopes, on two levels. `ctx.auth.currentUser()`,
+`requireUser()` and `register()` are about **the caller of this request** —
+`register()` signs the visitor up and issues their session. `ctx.users` is a
+separate top-level namespace for the **project's user directory**, which can point
+at anybody — `ctx.auth.setPassword(...)` would read like "change my password" while
+being able to change anyone's.
+
+There is no platform password-reset endpoint. Write the flow in your own Func with
+two primitives — send the code with `ctx.email.sendCode`, then:
+
+```ts
+export function requestReset(input: { email: string }, ctx: TalizenFuncContext) {
+  // Look the user up first, otherwise this form mails arbitrary addresses.
+  const user = ctx.users.find({ email: input.email });
+  if (user) ctx.email.sendCode({ to: input.email, scene: "reset_password" });
+  // Both branches must return the same thing, or this becomes an enumeration oracle.
+  return { ok: true };
+}
+
+export function confirmReset(
+  input: { email: string; code: string; password: string },
+  ctx: TalizenFuncContext,
+) {
+  const ok = ctx.email.verifyCode({
+    to: input.email,
+    scene: "reset_password",
+    code: input.code,
+  });
+  if (!ok) throw new Error("invalid or expired code");
+  // No code or ticket parameter: you verified above, that is the authorization.
+  ctx.users.setPassword({ email: input.email, password: input.password });
+  return { ok: true };
+}
+```
+
+`setPassword` hashes with bcrypt and **revokes every session of that user**, the
+caller's included — the platform does this because Func code has no access to the
+session table and forgetting it leaves a leaked password's sessions alive. The
+user ref accepts exactly one of `email`, `account` or `userId`.
+
+A signed-in user changing their own password should confirm the old one, since a
+session may be stolen. Point at the user with the id from `requireUser()`, never
+one taken from the request body:
+
+```ts
+export function changePassword(
+  input: { oldPassword: string; password: string },
+  ctx: TalizenFuncContext,
+) {
+  const user = ctx.auth.requireUser();
+  if (!ctx.users.checkPassword({ userId: user.id, password: input.oldPassword }))
+    throw new Error("current password is incorrect");
+  ctx.users.setPassword({ userId: user.id, password: input.password });
+  return { ok: true }; // sessions are gone, send them to the login page
+}
+```
+
+`checkPassword` returns false for a wrong password, an unknown user, or an account
+that only signs in through a third party. Its failures share the login endpoint's
+budget (5 per project+IP+account, one hour), so it is not a way around the login
+lockout; once spent it throws 429 instead of returning false.
+
+`ctx.db`, `ctx.cache`, `ctx.auth`, `ctx.verify`, `ctx.assets`, `ctx.email`, `ctx.request`, and `ctx.cookies` are injected by the Talizen Func runtime. `talizen/func-runtime` is a type-only authoring module; do not import runtime values from it.
 
 `ctx.request` exposes Fetch-style one-shot body readers. Use `await ctx.request.text()` when a webhook signature must be verified against the exact request bytes, `await ctx.request.json()` for parsed JSON, or `await ctx.request.arrayBuffer()` for binary input. JSON, form-encoded, text, and binary POST bodies reach Func; non-JSON requests receive `{}` as `input` while their exact bytes remain available through `ctx.request`. Reading the body sets `ctx.request.bodyUsed`; a second read rejects. `ctx.response.status(code)` sets the actual HTTP response status (100-599), including statuses returned when a Func throws after setting the status. The runtime also provides `TextEncoder`, Base64 helpers, and Web Crypto algorithms used by webhook verification, including HMAC and RSA2.
 
