@@ -54,9 +54,104 @@ export interface FuncDbRuntime {
   delete(table: string, id: string): { ok?: boolean; deleted?: boolean }
 }
 
+export interface FuncAuthRegisterInput {
+  account?: string
+  email?: string
+  phone?: string
+  password?: string
+  name?: string
+  avatar?: string
+  profile?: Record<string, unknown>
+}
+
+/**
+ * Points at one existing user. Exactly one field may be given: they are three
+ * different sources of uniqueness (id is unique, account has a unique index,
+ * email has none), so allowing two would require answering "which one wins when
+ * they disagree" — and getting that wrong here writes to somebody else's account.
+ */
+export interface FuncAuthUserRef {
+  userId?: string
+  email?: string
+  account?: string
+}
+
+export interface FuncAuthSetPasswordInput extends FuncAuthUserRef {
+  password: string
+}
+
+export interface FuncAuthCheckPasswordInput extends FuncAuthUserRef {
+  password: string
+}
+
+/**
+ * The project's user directory, reached as `ctx.users`. Scoped to the whole
+ * project, NOT to the caller — that is why it is a separate top-level namespace
+ * instead of sitting on `ctx.auth`, which is about whoever is calling.
+ */
+export interface FuncUsersRuntime {
+  /** Returns null when there is no such user; it does not throw. */
+  find(ref: FuncAuthUserRef): AuthUser | null
+  /**
+   * Checks a user's *current* password, for "confirm your old password before
+   * changing it" flows. Returns false for a wrong password, for an unknown user,
+   * and for accounts that only sign in through a third party.
+   *
+   * Failures count against **the same budget as `/auth/login`** (5 per
+   * project+IP+account, one hour), so this cannot be used to brute-force around
+   * the login lockout — once the budget is spent it throws 429 rather than
+   * returning false.
+   */
+  checkPassword(input: FuncAuthCheckPasswordInput): boolean
+  /**
+   * Replaces the password and revokes **every session of that user** — including
+   * the caller's own, so send them back to the login page afterwards.
+   *
+   * There is no code or proof parameter: whether the change is allowed is your
+   * Func code's decision (verify a code first). Throws 404 when the user does not
+   * exist or signs in only through a third party; never return that error to the
+   * browser verbatim, it is an account-enumeration oracle.
+   */
+  setPassword(input: FuncAuthSetPasswordInput): AuthUser
+}
+
 export interface FuncAuthRuntime {
+  /** Who is calling this request. Null when the request carries no session. */
   currentUser(): AuthUser | null
   requireUser(): AuthUser
+  /**
+   * Registers the visitor and issues their session. No code, ticket or
+   * "already verified" flag: with `register_entry: "func"` the platform runs no
+   * checks, so verify before you call this.
+   */
+  register(input: FuncAuthRegisterInput): AuthUser
+}
+
+export interface FuncVerificationInput {
+  channel: "email" | "sms"
+  to: string
+  purpose: "register" | "login" | "reset" | "bind"
+}
+
+export interface FuncVerificationConfirmInput extends FuncVerificationInput {
+  code: string
+}
+
+export interface FuncVerificationStarted {
+  sent: boolean
+  /** Seconds until the code expires. */
+  expiresIn: number
+}
+
+/**
+ * Verification codes in the platform's reserved scenes, used by registration.
+ * Unlike `ctx.email.sendCode`, `start` also applies the project's registration
+ * policy and the email-taken check. Inside Func, `confirm` only returns a
+ * boolean — there is no ticket, because confirm and register run in one call.
+ */
+export interface FuncVerifyRuntime {
+  start(input: FuncVerificationInput): FuncVerificationStarted
+  confirm(input: FuncVerificationConfirmInput): boolean
 }
 
 export interface FuncAssetUploadInput {
@@ -237,6 +332,8 @@ export interface TalizenFuncContext {
   response: FuncResponseRuntime
   db: FuncDbRuntime
   auth: FuncAuthRuntime
+  users: FuncUsersRuntime
+  verify: FuncVerifyRuntime
   assets: FuncAssetsRuntime
   cache: FuncCacheRuntime
   email: FuncEmailRuntime
