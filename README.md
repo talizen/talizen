@@ -478,6 +478,44 @@ that only signs in through a third party. Its failures share the login endpoint'
 budget (5 per project+IP+account, one hour), so it is not a way around the login
 lockout; once spent it throws 429 instead of returning false.
 
+### Log a user in from Func
+
+`ctx.auth.login(ref)` issues a session for an existing user, which is how a Func
+implements sign-in — including passwordless flows that the SDK cannot express:
+
+```ts
+// Sign in with an emailed code: no password involved
+export function loginWithCode(
+  input: { email: string; code: string },
+  ctx: TalizenFuncContext,
+) {
+  const user = ctx.users.find({ email: input.email });
+  if (!user) throw new Error("the code is wrong or has expired");
+  if (!ctx.email.verifyCode({ to: input.email, scene: "login", code: input.code }))
+    throw new Error("the code is wrong or has expired");
+
+  // Point at the user the server just resolved — never at input.email directly
+  return ctx.auth.login({ userId: user.id });
+}
+
+// Password sign-in with your own extra rules
+export function login(
+  input: { account: string; password: string },
+  ctx: TalizenFuncContext,
+) {
+  if (!ctx.users.checkPassword({ account: input.account, password: input.password }))
+    throw new Error("wrong account or password");
+  const user = ctx.users.find({ account: input.account })!;
+  if (ctx.db.get("banned", user.id)) throw new Error("this account is suspended");
+  return ctx.auth.login({ userId: user.id });
+}
+```
+
+`login` takes no password and no code: your code decides. It throws 404 for an
+unknown user and 403 for a disabled one, and the platform records every session it
+issues together with the Func file that issued it, visible to the site owner in the
+editor. Direct `useAuth().login()` keeps working — the two coexist.
+
 `ctx.db`, `ctx.cache`, `ctx.auth`, `ctx.verify`, `ctx.assets`, `ctx.email`, `ctx.request`, and `ctx.cookies` are injected by the Talizen Func runtime. `talizen/func-runtime` is a type-only authoring module; do not import runtime values from it.
 
 `ctx.request` exposes Fetch-style one-shot body readers. Use `await ctx.request.text()` when a webhook signature must be verified against the exact request bytes, `await ctx.request.json()` for parsed JSON, or `await ctx.request.arrayBuffer()` for binary input. JSON, form-encoded, text, and binary POST bodies reach Func; non-JSON requests receive `{}` as `input` while their exact bytes remain available through `ctx.request`. Reading the body sets `ctx.request.bodyUsed`; a second read rejects. `ctx.response.status(code)` sets the actual HTTP response status (100-599), including statuses returned when a Func throws after setting the status. The runtime also provides `TextEncoder`, Base64 helpers, and Web Crypto algorithms used by webhook verification, including HMAC and RSA2.
