@@ -125,6 +125,23 @@ export interface FuncAuthRuntime {
    * checks, so verify before you call this.
    */
   register(input: FuncAuthRegisterInput): AuthUser
+  /**
+   * Issues a session for an **existing** user — this is how a Func implements
+   * login. Takes no password and no code: whether the sign-in is allowed is your
+   * code's decision (check `ctx.users.checkPassword`, or verify an email code
+   * first). The session cookie is minted by the platform; Func never sees the token.
+   *
+   * **The ref must come from a fact the server just verified** — the user returned
+   * by `ctx.users.find` after a successful code check, or the account whose password
+   * you just checked. Passing an address straight from the request body means
+   * "whoever the browser claims to be", i.e. impersonation.
+   *
+   * Every session issued this way is recorded with the Func file that issued it,
+   * and the site owner can read that history in the editor.
+   *
+   * Throws 404 when the user does not exist, 403 when the account is disabled.
+   */
+  login(ref: FuncAuthUserRef): AuthUser
 }
 
 export interface FuncVerificationInput {
