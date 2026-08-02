@@ -3,14 +3,27 @@ import type { AuthUser } from "./auth.js"
 export type DbOrderBy = string
 
 export interface DbFilterCondition {
+  /**
+   * @deprecated The Func runtime binds `fieldId` only. A condition written with
+   * `field_id` is dropped **silently**, which widens the query instead of failing.
+   */
   field_id?: string
   fieldId?: string
   operator: "equal" | "not_equal" | "in"
+  /** For `in`, pass the array here. */
   value?: unknown
+  /**
+   * @deprecated Not read by the Func runtime — it exists only on the agent tool
+   * API. Pass the array as `value`.
+   */
   values?: unknown[]
 }
 
 export interface DbFilter {
+  /**
+   * @deprecated Not honoured by the Func runtime: conditions are always AND-ed.
+   * `"or"` is accepted and ignored. For OR, run two queries and merge.
+   */
   match?: "and" | "or"
   conditions?: DbFilterCondition[]
 }
@@ -18,9 +31,19 @@ export interface DbFilter {
 export interface DbQuery {
   where?: Record<string, unknown>
   filter?: DbFilter
+  /** Default 20, maximum 1000. A larger value is clamped silently. */
   limit?: number
   offset?: number
+  /**
+   * `<column> asc|desc`, comma separated. System columns are `id`, `sort`,
+   * `user_id`, `created_at` and `updated_at`; business fields need the `body.`
+   * prefix, e.g. `"body.startAt desc"`. Defaults to `sort desc, id desc`.
+   */
   order_by?: DbOrderBy
+  /**
+   * @deprecated The Func runtime binds `order_by` only. `orderBy` is dropped
+   * **silently**, leaving the query on its default ordering.
+   */
   orderBy?: DbOrderBy
 }
 
@@ -31,6 +54,12 @@ export type DbRecord<T extends Record<string, unknown> = Record<string, unknown>
 export interface DbQueryResult<T extends Record<string, unknown> = Record<string, unknown>> {
   total: number
   list: Array<DbRecord<T>>
+  /**
+   * The page size that actually applied. A `limit` above the platform maximum is
+   * clamped silently, so comparing this against what you asked for is the only
+   * way to notice the result was truncated.
+   */
+  limit: number
 }
 
 export interface FuncDbRuntime {
@@ -85,6 +114,43 @@ export interface FuncAuthCheckPasswordInput extends FuncAuthUserRef {
 }
 
 /**
+ * Filters for `ctx.users.query`. Every field is optional: an empty query returns
+ * the first page of the whole directory.
+ */
+export interface FuncUsersQueryInput {
+  /** Substring match across account, email, phone and name. */
+  search?: string
+  /** Restricts to enabled or disabled accounts. Any other value is a 400. */
+  status?: "enabled" | "disabled"
+  /** Default 20, maximum 100. A larger value is clamped silently. */
+  limit?: number
+  offset?: number
+  /**
+   * `<column> asc|desc`, comma separated. Only `created_at`, `last_login_at` and
+   * `id` may be named — anything else is a 400. Defaults to `created_at desc`.
+   *
+   * Unlike `ctx.db.query` there is no `body.` prefix here: profile fields are not
+   * sortable.
+   */
+  order_by?: string
+}
+
+/**
+ * A user as returned by `ctx.users.query`. `profile` is deliberately absent:
+ * custom fields can hold back-office-only values, and a list result is the thing
+ * most likely to be forwarded to the browser wholesale. Call `find` with the id
+ * when you need one person's full record.
+ */
+export type FuncUsersQueryItem = Omit<AuthUser, "profile">
+
+export interface FuncUsersQueryResult {
+  total: number
+  list: FuncUsersQueryItem[]
+  /** The page size that actually applied; see {@link DbQueryResult.limit}. */
+  limit: number
+}
+
+/**
  * The project's user directory, reached as `ctx.users`. Scoped to the whole
  * project, NOT to the caller — that is why it is a separate top-level namespace
  * instead of sitting on `ctx.auth`, which is about whoever is calling.
@@ -92,6 +158,17 @@ export interface FuncAuthCheckPasswordInput extends FuncAuthUserRef {
 export interface FuncUsersRuntime {
   /** Returns null when there is no such user; it does not throw. */
   find(ref: FuncAuthUserRef): AuthUser | null
+  /**
+   * Pages through the directory. Unlike `find` this does not require knowing who
+   * you are looking for, which makes it the one call that can read out the whole
+   * customer list — so **every Func using it must implement its own access
+   * check** (`requireUser()`, then your own admin rule). The platform enforces
+   * project isolation and the page cap and nothing else: it has no notion of
+   * roles, so it cannot make this decision for you.
+   *
+   * Returned users carry no `profile`; see {@link FuncUsersQueryItem}.
+   */
+  query(input?: FuncUsersQueryInput): FuncUsersQueryResult
   /**
    * Checks a user's *current* password, for "confirm your old password before
    * changing it" flows. Returns false for a wrong password, for an unknown user,
