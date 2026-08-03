@@ -315,12 +315,8 @@ export interface FuncEmailVerifyCodeInput extends FuncEmailCodeInput {
   code: string
 }
 
-/**
- * Email capability, available once an email integration is connected for the
- * project. The provider credential stays on the server: Func code never holds
- * or receives an API key.
- */
-export interface FuncEmailRuntime {
+/** The email methods, bound to one channel. */
+export interface FuncEmailChannel {
   send(input: FuncEmailSendInput): FuncSentEmail
   /**
    * Generates and sends a verification code. Code length, expiry, per-recipient
@@ -330,6 +326,131 @@ export interface FuncEmailRuntime {
   /** Checks a code; a matching code is consumed and cannot be reused. */
   verifyCode(input: FuncEmailVerifyCodeInput): boolean
   verifyCode(to: string, code: string): boolean
+}
+
+/**
+ * Email capability, available once an email integration is connected for the
+ * project. The provider credential stays on the server: Func code never holds
+ * or receives an API key.
+ *
+ * `via(tag)` picks a channel when the project has several email integrations —
+ * tag by purpose (`otp`, `notify`), not by provider, so swapping providers stays a
+ * configuration change. Calling without `via` is the same as `via("default")`, and
+ * a tag no integration carries throws instead of falling back silently.
+ *
+ * Verification codes are stored per project, scene and recipient, without the
+ * provider, so a code sent through `via("otp")` still verifies with a plain
+ * `verifyCode`.
+ */
+export interface FuncEmailRuntime extends FuncEmailChannel {
+  via(tag: string): FuncEmailChannel
+}
+
+export interface FuncAlipayPageURLInput {
+  /**
+   * Your own order id, up to 64 printable ASCII chars. The platform does not
+   * generate it: it is both your order table's key and the idempotency key of the
+   * notification, so store the row before redirecting the payer.
+   */
+  outTradeNo: string
+  subject: string
+  /** In yuan, at most 2 decimals. `"9.9"` is normalised to `"9.90"`. */
+  amount: string
+  /** Optional product description. */
+  body?: string
+  /**
+   * Overrides the return address configured on the integration. Page experience
+   * only — landing there is never a proof of payment.
+   */
+  returnUrl?: string
+}
+
+export interface FuncAlipayPageURL {
+  /** Signed gateway URL; send the browser to it. */
+  payUrl: string
+  outTradeNo: string
+  /** The normalised amount that was signed. */
+  amount: string
+  appId: string
+  provider: string
+}
+
+/**
+ * A verified async notification. Every field comes from the notification Alipay
+ * signed; fields Alipay omits arrive as empty strings.
+ */
+export interface FuncAlipayNotification {
+  outTradeNo: string
+  /** Alipay's trade id. */
+  tradeNo: string
+  tradeStatus: string
+  /** Amount actually paid; compare it with your own order. */
+  totalAmount: string
+  receiptAmount: string
+  buyerId: string
+  buyerLogonId: string
+  subject: string
+  gmtPayment: string
+  /** Notification id, usable for de-duplication. */
+  notifyId: string
+  notifyTime: string
+  appId: string
+  sellerId: string
+  /** True for TRADE_SUCCESS and TRADE_FINISHED, so you never compare strings yourself. */
+  paid: boolean
+  /** Every raw parameter, for fields like `passback_params`. */
+  params: Record<string, string>
+}
+
+/** The Alipay methods, bound to one payment channel. */
+export interface FuncAlipayChannel {
+  /** Signs an Alipay PC website payment and returns the redirect URL. */
+  pageUrl(input: FuncAlipayPageURLInput): FuncAlipayPageURL
+  /**
+   * Verifies an async notification: RSA2 signature over the raw form body, then
+   * `app_id` and `seller_id` against this channel.
+   *
+   * Pass the **raw** body (`await ctx.request.text()`); parsing and re-serialising
+   * it breaks the signature. Any failure **throws** rather than returning a value
+   * you could mistake for falsy, so a forged notification never reaches your code.
+   */
+  verifyNotify(rawBody: string): FuncAlipayNotification
+  /**
+   * Calls another Alipay OpenAPI method (query, refund, close, …). The platform
+   * signs the request and verifies the response against its raw text, then returns
+   * the business node. A business code other than `10000` throws.
+   *
+   * `alipay.trade.page.pay` is a redirect flow — use `pageUrl` for it.
+   */
+  call<T = Record<string, unknown>>(method: string, bizContent?: Record<string, unknown>): T
+}
+
+/**
+ * Alipay capability, available once an Alipay integration is connected for the
+ * project. The app private key stays on the server: Func code never holds it, and
+ * signing, notification verification and content encryption all happen server-side.
+ *
+ * `via(tag)` picks a payment channel when the project has several receiving
+ * accounts. Unlike `ctx.email`, a tag matching several payment integrations
+ * **throws** instead of picking one at random: an order signed with one account
+ * only ever gets notifications carrying that account's `app_id`.
+ */
+export interface FuncAlipayRuntime extends FuncAlipayChannel {
+  via(tag: string): FuncAlipayChannel
+}
+
+/**
+ * Payment capabilities. This is a **namespace, not a unified interface**: each
+ * provider keeps its own method shape, so a future `ctx.payment.stripe` will not
+ * mirror `ctx.payment.alipay`. Payment providers are not isomorphic, and pretending
+ * otherwise would only produce a leaky abstraction.
+ *
+ * The platform owns cryptography and credentials; your code owns money and goods —
+ * amounts must come from a server-side product table, and the order table, amount
+ * check and idempotent fulfilment stay in Func.
+ */
+export interface FuncPaymentRuntime {
+  alipay: FuncAlipayRuntime
 }
 
 export interface FuncReadonlyStringMap {
@@ -431,6 +552,7 @@ export interface TalizenFuncContext {
   assets: FuncAssetsRuntime
   cache: FuncCacheRuntime
   email: FuncEmailRuntime
+  payment: FuncPaymentRuntime
   cookies: FuncCookieRuntime
   sse: FuncSSERuntime
 }
