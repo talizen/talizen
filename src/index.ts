@@ -118,6 +118,147 @@ export interface Redirect {
   permanent: boolean
 }
 
+/**
+ * Request context passed to the per-request fields of `talizen.config.ts`.
+ *
+ * Deliberately narrow: no cookies (reading them would make the page vary by
+ * cookie) and no CMS access (site-level config must not fetch data, so it never
+ * participates in cache invalidation). It answers only "which language, which
+ * host, which path is this request".
+ */
+export interface TalizenConfigContext {
+  /** Current locale, e.g. `"zh-CN"`. Empty string when the site is single-language. */
+  locale: string
+  /** All locales declared in `i18n.locales`. */
+  locales?: Array<string>
+  /** Content baseline locale from `i18n.defaultLocale`. */
+  defaultLocale?: string
+  /** The unprefixed default locale of the host serving this request. */
+  routingDefaultLocale?: string
+  /** Request host, e.g. `"example.cn"`. Useful for per-domain branching. */
+  host: string
+  /** Request path with the locale prefix removed. */
+  path: string
+}
+
+/**
+ * A config field that may be a plain value or a function evaluated per request.
+ *
+ * Only fields that affect the rendered HTML accept a function. Build and routing
+ * inputs (`importMap`, `i18n`, `redirects`) must be static values — they are
+ * needed before a request exists, and writing them as a function is a load-time
+ * error.
+ */
+export type PerRequest<T> =
+  | T
+  | ((ctx: TalizenConfigContext) => T | Promise<T>)
+
+/** Attributes for `<html>` / `<body>`. `className` is accepted as an alias of `class`. */
+export type TagAttributes = Record<string, string | number>
+
+/** Site-level initial viewport, aligned with the Next.js App Router `viewport` object. */
+export interface Viewport {
+  width?: string | number | null
+  height?: string | number | null
+  initialScale?: number | null
+  minimumScale?: number | null
+  maximumScale?: number | null
+  userScalable?: boolean | null
+  interactiveWidget?: string | null
+  themeColor?: string | null
+  colorScheme?: string | null
+}
+
+/** Per-domain locale mapping, aligned with Next.js `i18n.domains`. */
+export interface I18nDomain {
+  domain: string
+  defaultLocale: string
+  /** Extra locales this domain serves; `defaultLocale` is always served. */
+  locales?: Array<string>
+  /** Use http instead of https when redirecting across domains (local testing). */
+  http?: boolean
+}
+
+/** Multilingual routing config, aligned with Next.js `i18n`. */
+export interface I18nConfig {
+  /** Content baseline locale; also the unprefixed locale by default. */
+  defaultLocale: string
+  locales: Array<string>
+  domains?: Array<I18nDomain>
+  /** Redirect prefix-less paths by cookie / Accept-Language. Defaults `true`. */
+  localeDetection?: boolean
+}
+
+/**
+ * Raw HTML snippets injected into the document.
+ *
+ * @deprecated Use the `head` / `bodyEnd` fields instead — they can be written as
+ * `(ctx) => string`, so they can branch by locale or host. `customCode` keeps
+ * working and is injected before `head` / `bodyEnd`.
+ */
+export interface CustomCode {
+  head?: string
+  body?: string
+}
+
+/**
+ * The default export of `talizen.config.ts` — the single entry point for
+ * site-level configuration.
+ *
+ * Two groups of fields, split by whether the platform needs them **before** a
+ * request exists:
+ *
+ * - **Static only** — `importMap`, `i18n`, `redirects`. Bundling and route
+ *   building happen ahead of any request, so these must be plain values.
+ * - **Per request allowed** — `metadata`, `html`, `body`, `head`, `bodyEnd`,
+ *   `viewport`. These only shape the rendered HTML, so each may be written as
+ *   `(ctx) => value` to branch on locale or host.
+ *
+ * Things that have their own URL are files, not config: `/robots.ts`,
+ * `/sitemap.ts`, `/llms.ts` each produce one endpoint.
+ *
+ * ```ts
+ * import type { TalizenConfig } from "talizen"
+ *
+ * export default {
+ *   i18n: { defaultLocale: "zh-CN", locales: ["zh-CN", "en"] },
+ *   metadata: (ctx) => ({
+ *     title: { template: "%s | Acme", default: "Acme" },
+ *     description: ctx.locale === "en" ? "English" : "中文",
+ *   }),
+ *   html: { className: "dark" },
+ *   head: (ctx) =>
+ *     ctx.host.endsWith(".cn")
+ *       ? `<script async src="https://hm.baidu.com/hm.js?x"></script>`
+ *       : `<script async src="https://www.googletagmanager.com/gtag/js?id=G-X"></script>`,
+ * } satisfies TalizenConfig
+ * ```
+ */
+export interface TalizenConfig {
+  /** Extra browser dependencies. Static: bundling happens before a request. */
+  importMap?: { imports: Record<string, string> }
+  /** Multilingual routing. Static: the router is built before a request. */
+  i18n?: I18nConfig
+  /** Site-level redirects. Static: matched before the page renders. */
+  redirects?: Array<Redirect>
+
+  /** Site-level metadata defaults; page metadata layers on top. */
+  metadata?: PerRequest<Metadata>
+  /** `<html>` attributes. Omit `lang` to let the platform fill the current locale. */
+  html?: PerRequest<TagAttributes>
+  /** `<body>` attributes. */
+  body?: PerRequest<TagAttributes>
+  /** HTML injected before `</head>`. */
+  head?: PerRequest<string>
+  /** HTML injected before `</body>`. */
+  bodyEnd?: PerRequest<string>
+  /** Site-level initial viewport. */
+  viewport?: PerRequest<Viewport>
+
+  /** @deprecated Use `head` / `bodyEnd`. */
+  customCode?: CustomCode
+}
+
 export type SitemapChangeFrequency =
   | "always"
   | "hourly"
