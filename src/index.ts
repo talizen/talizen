@@ -64,6 +64,29 @@ export interface MetadataFormatDetection {
   telephone?: boolean
 }
 
+/**
+ * Robots directives, aligned with Next.js `metadata.robots`.
+ *
+ * Every field is optional and only emitted when explicitly set. Omitting all of
+ * them renders no `<meta name="robots">` at all, leaving the decision to the
+ * search engine's default rather than having the platform declare `index, follow`
+ * on your behalf.
+ *
+ * `noarchive` / `nosnippet` / `noimageindex` / `nocache` only carry meaning when
+ * `true`; setting them to `false` emits nothing, since those directives have no
+ * inverse form.
+ */
+export interface MetadataRobots {
+  index?: boolean
+  follow?: boolean
+  noarchive?: boolean
+  nosnippet?: boolean
+  noimageindex?: boolean
+  nocache?: boolean
+  /** Emitted as a separate `<meta name="googlebot">` tag; not nested further. */
+  googleBot?: MetadataRobots
+}
+
 export interface OpenGraphMetadata {
   title?: string
   description?: string
@@ -89,6 +112,8 @@ export interface Metadata {
   formatDetection?: MetadataFormatDetection | null
   openGraph?: OpenGraphMetadata | null
   icons?: MetadataIcons | null
+  /** String form (`'noindex, nofollow'`) is emitted verbatim as the meta content. */
+  robots?: string | MetadataRobots | null
 }
 
 /**
