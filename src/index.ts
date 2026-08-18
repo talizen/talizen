@@ -99,6 +99,56 @@ export interface OpenGraphMetadata {
   type?: string
 }
 
+/**
+ * Twitter (X) card metadata, aligned with Next.js `metadata.twitter`.
+ *
+ * You rarely need to write this. Anything omitted here is inherited from
+ * `openGraph` — and then from the top-level `title` / `description` — so a site
+ * that only configures `openGraph` already renders a complete card. Declare
+ * `twitter` only when the share card should differ from the Open Graph one.
+ *
+ * `card` defaults to `summary_large_image` when an image is present and
+ * `summary` otherwise. `images: []` explicitly opts out of the inherited
+ * `openGraph` image.
+ */
+export interface TwitterMetadata {
+  card?: 'summary' | 'summary_large_image' | 'player' | 'app'
+  /** The site's own handle, e.g. `'@acme'`. */
+  site?: string
+  siteId?: string
+  /** The content author's handle, e.g. `'@jane'`. */
+  creator?: string
+  creatorId?: string
+  title?: string
+  description?: string
+  /** Accepts a bare URL, an image object, or an array of either. */
+  images?: OneOrMany<string | OpenGraphImage>
+  /** Only emitted when `card` is `'player'`. */
+  players?: Array<TwitterPlayer>
+  /** Only emitted when `card` is `'app'`. */
+  app?: TwitterApp
+}
+
+export interface TwitterPlayer {
+  playerUrl: string
+  streamUrl?: string
+  width?: number
+  height?: number
+}
+
+export interface TwitterApp {
+  name?: string
+  id: TwitterAppTargets
+  url?: TwitterAppTargets
+}
+
+/** Per-platform app store ids (`app.id`) or deep links (`app.url`). */
+export interface TwitterAppTargets {
+  iphone?: string
+  ipad?: string
+  googleplay?: string
+}
+
 export interface Metadata {
   title?: string | MetadataTitle | null
   description?: string | null
@@ -111,6 +161,8 @@ export interface Metadata {
   publisher?: string | null
   formatDetection?: MetadataFormatDetection | null
   openGraph?: OpenGraphMetadata | null
+  /** Omit to inherit the card from `openGraph`; see {@link TwitterMetadata}. */
+  twitter?: TwitterMetadata | null
   icons?: MetadataIcons | null
   /** String form (`'noindex, nofollow'`) is emitted verbatim as the meta content. */
   robots?: string | MetadataRobots | null
