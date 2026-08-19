@@ -149,6 +149,57 @@ export interface TwitterAppTargets {
   googleplay?: string
 }
 
+/**
+ * Alternate URLs for this page, aligned with Next.js `metadata.alternates`.
+ *
+ * Only `canonical` is supported. `languages` (hreflang) is deliberately absent:
+ * the engine already cross-links every locale of a page from your `i18n`
+ * config, so a hand-written set would only fight it.
+ */
+export interface MetadataAlternates {
+  /**
+   * This page's primary URL, overriding the automatic self-referencing canonical.
+   *
+   * You usually do not need it. Every indexable 200 page already gets a
+   * `<link rel="canonical">` in `<head>`, and that automatic value drops query
+   * params which do not change the page: tracking params (`utm_*`, `gclid`,
+   * `fbclid`, ...) always, plus any param the page's server code never reads.
+   * So `/contact?subject=quote` canonicalizes to `/contact`, while `/blog?page=2`
+   * keeps `page=2` because `getServerSideProps` read it.
+   *
+   * Never render `<link rel="canonical">` from a component instead: it lands in
+   * `<body>`, where crawlers ignore it, and duplicates the real one.
+   *
+   * Set this only when the page genuinely has a different primary URL — a
+   * duplicate route, or a filtered view that should consolidate into its parent:
+   *
+   * ```ts
+   * export const metadata: Metadata = {
+   *   title: 'Matcha Powder',
+   *   alternates: { canonical: '/products/matcha-powder' },
+   * }
+   * ```
+   *
+   * A relative path resolves against the current request's scheme and host, so
+   * multi-domain and preview domains stay correct — there is no `metadataBase`
+   * to configure, and hardcoding the production origin would break previews.
+   *
+   * Two deviations from Next.js:
+   *
+   * - Omitting this still emits the automatic self-referencing canonical
+   *   (Next.js emits nothing when you omit it).
+   * - It is honored **only on page metadata**. A `canonical` declared in
+   *   `talizen.config.ts` or a root layout is ignored: inheriting it would point
+   *   every page of the site at one URL and drop the rest from the index.
+   */
+  canonical?: string | MetadataCanonical | null
+}
+
+/** Object form of `alternates.canonical`; equivalent to passing the URL directly. */
+export interface MetadataCanonical {
+  url: string
+}
+
 export interface Metadata {
   title?: string | MetadataTitle | null
   description?: string | null
@@ -166,6 +217,11 @@ export interface Metadata {
   icons?: MetadataIcons | null
   /** String form (`'noindex, nofollow'`) is emitted verbatim as the meta content. */
   robots?: string | MetadataRobots | null
+  /**
+   * Rarely needed: canonical is emitted automatically. Page metadata only — see
+   * {@link MetadataAlternates}.
+   */
+  alternates?: MetadataAlternates | null
 }
 
 /**
