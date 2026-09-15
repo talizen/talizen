@@ -570,6 +570,125 @@ export interface FuncStripeEvent {
   object: Record<string, unknown>
   /** The whole event, for `data.previous_attributes` and friends. */
   event: Record<string, unknown>
+  /**
+   * Normalised subscription view, present only on `invoice.*` and `customer.subscription.*`
+   * events. Check it with `if (event.subscription)` to split subscription handling from
+   * one-off payments.
+   */
+  subscription?: FuncStripeSubscriptionEvent
+}
+
+export interface FuncStripeSubscriptionSessionInput {
+  /**
+   * Your own subscription id, up to 200 chars of letters, digits, dash or underscore.
+   *
+   * The platform stamps it on **both** the Checkout Session and the subscription itself.
+   * That second copy is the one that matters: a renewal invoice has no Checkout Session,
+   * so without it the first charge maps to a user and every renewal after that maps to
+   * nobody, silently.
+   */
+  clientReferenceId: string
+  /**
+   * A price created in the Stripe dashboard (`price_...`). Use this or the inline fields
+   * below, never both. Dashboard prices let you change pricing, coupons and trials without
+   * touching code; inline suits a site with a single fixed plan.
+   */
+  priceId?: string
+  /** Inline price: an integer in the currency's smallest unit, as with one-off payments. */
+  amount?: number
+  currency?: string
+  /** `day` | `week` | `month` | `year`. */
+  interval?: string
+  /** Defaults to 1, e.g. interval `month` with count 3 bills quarterly. */
+  intervalCount?: number
+  /** Product name shown on the checkout page. Required with an inline price. */
+  name?: string
+  quantity?: number
+  customerEmail?: string
+  /**
+   * An existing Stripe customer (`cus_...`). Pass it on a repeat subscription, otherwise the
+   * same person accumulates several customers and the billing portal and your reporting drift.
+   * Mutually exclusive with `customerEmail`.
+   */
+  customerId?: string
+  /** Echoed back on the session, the subscription, and every invoice event. */
+  metadata?: Record<string, string>
+  /** Free trial length in days. */
+  trialDays?: number
+  /** Show the promotion-code field on the checkout page. */
+  allowPromotionCodes?: boolean
+  successUrl?: string
+  cancelUrl?: string
+  idempotencyKey?: string
+}
+
+export interface FuncStripeSubscriptionSession {
+  id: string
+  /** Stripe-hosted checkout URL; send the browser to it. */
+  url: string
+  clientReferenceId: string
+  livemode: boolean
+  provider: string
+}
+
+/** A subscription read back from Stripe. */
+export interface FuncStripeSubscription {
+  id: string
+  /** `active` | `trialing` | `past_due` | `canceled` | `unpaid` | `incomplete` | … */
+  status: string
+  customerId: string
+  /**
+   * `status` is `active` or `trialing`, computed by the platform. Trialing counts: leaving it
+   * out makes a free trial broken from day one.
+   */
+  active: boolean
+  clientReferenceId: string
+  priceId: string
+  quantity: number
+  /** Unix seconds. */
+  currentPeriodStart: number
+  currentPeriodEnd: number
+  cancelAtPeriodEnd: boolean
+  /** Unix seconds, 0 when there is no trial. */
+  trialEnd: number
+  metadata: Record<string, string>
+  livemode: boolean
+  /** The full Stripe object. */
+  subscription: Record<string, unknown>
+}
+
+/**
+ * The subscription view of a verified webhook event, present only on `invoice.*` and
+ * `customer.subscription.*` events and `undefined` on everything else.
+ *
+ * It exists because the raw paths are deep and have moved between API versions:
+ * the renewal metadata lives at `invoice.parent.subscription_details.metadata`, the period at
+ * `lines.data[0].period`, the price at `lines.data[0].pricing.price_details.price`. Reading
+ * them wrong does not raise an error, it just yields empty strings that match no order.
+ */
+export interface FuncStripeSubscriptionEvent {
+  subscriptionId: string
+  customerId: string
+  /** Your own id, recovered from the subscription metadata. This is what renewals match on. */
+  clientReferenceId: string
+  metadata: Record<string, string>
+  status: string
+  /**
+   * Whether the subscription should grant access after this event. For invoice events it means
+   * this period was actually paid, filtered by `billingReason` so a one-off invoice is not
+   * mistaken for a billing cycle.
+   */
+  active: boolean
+  priceId: string
+  /** Unix seconds. */
+  currentPeriodStart: number
+  currentPeriodEnd: number
+  cancelAtPeriodEnd: boolean
+  /** Invoice events only. */
+  invoiceId: string
+  billingReason: string
+  amountPaid: number
+  currency: string
 }
 
 /** The Stripe methods, bound to one payment channel. */
@@ -605,6 +724,21 @@ export interface FuncStripeChannel {
    * your own table.
    */
   verifyWebhook(rawBody: string): FuncStripeEvent
+  /**
+   * Creates a subscription Checkout Session.
+   *
+   * A separate method rather than a `mode` option on `checkoutSession`: changing the mode
+   * changes the required parameters, the callback events and the whole reconciliation path,
+   * which makes it another method, not another argument.
+   */
+  subscriptionSession(input: FuncStripeSubscriptionSessionInput): FuncStripeSubscriptionSession
+  /** Reads a subscription back, with `active` computed for you. */
+  retrieveSubscription(subscriptionId: string): FuncStripeSubscription
+  /**
+   * Opens a Stripe-hosted billing portal where the subscriber can change their card, read
+   * invoices and cancel. Store `customerId` from the first subscription event to call it.
+   */
+  billingPortalSession(input: { customerId: string; returnUrl?: string }): { url: string }
   /**
    * Calls any other Stripe API (refunds, subscriptions, charges, …) with the
    * integration's secret key. Params are expanded Stripe-style, so nested objects
