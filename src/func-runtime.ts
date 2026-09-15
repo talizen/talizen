@@ -439,6 +439,35 @@ export interface FuncAlipayRuntime extends FuncAlipayChannel {
   via(tag: string): FuncAlipayChannel
 }
 
+/**
+ * Optional per-Func declaration, exported alongside your methods:
+ *
+ * ```ts
+ * export const config: FuncConfig = { timeoutMs: 90000 }
+ *
+ * export async function generate(input, ctx) { ... }
+ * ```
+ *
+ * How long a Func may run is a property of **the Func**, not of the request that
+ * triggered it. A `timeoutMS` passed to `invoke()` ends up in the query string, so
+ * any visitor can change it; a declaration lives in the source and ships with the
+ * site version. When both are present the declaration wins, and without one a
+ * caller can only ask for a modest ceiling.
+ *
+ * Only the module top level is evaluated to read this, so keep it a literal.
+ */
+export interface FuncConfig {
+  /**
+   * Wall-clock budget for one execution, in milliseconds. Covers waiting on
+   * `fetch` and the database — it is not a CPU budget, which is enforced
+   * separately and much lower.
+   *
+   * Must be a whole number greater than 0; a malformed value throws rather than
+   * being ignored. The platform still caps it at its own maximum.
+   */
+  timeoutMs?: number
+}
+
 export interface FuncStripeCheckoutSessionInput {
   /**
    * Your own order id, up to 200 chars of letters, digits, dash or underscore.
