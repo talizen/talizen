@@ -439,11 +439,177 @@ export interface FuncAlipayRuntime extends FuncAlipayChannel {
   via(tag: string): FuncAlipayChannel
 }
 
+export interface FuncStripeCheckoutSessionInput {
+  /**
+   * Your own order id, up to 200 chars of letters, digits, dash or underscore.
+   * The platform does not generate it: it is your order table's key, the session's
+   * `client_reference_id`, its `metadata.client_reference_id` and the default
+   * idempotency key — so store the row before redirecting the payer.
+   */
+  clientReferenceId: string
+  /**
+   * An integer in the currency's **smallest unit**: `500` means $5.00.
+   *
+   * Deliberately not a decimal string — passing `"9.90"` throws instead of being
+   * silently charged as 9 cents. (`ctx.payment.alipay` takes yuan strings because
+   * Alipay's own API does; each provider matches its own upstream.)
+   */
+  amount: number
+  /** Three-letter code such as `"usd"`. Falls back to the integration's default. */
+  currency?: string
+  /** Product name shown on the Stripe checkout page. */
+  name: string
+  /** Optional product description shown under the name. */
+  description?: string
+  /** Defaults to 1. */
+  quantity?: number
+  /**
+   * Override the integration's default return addresses. `successUrl` may contain
+   * `{CHECKOUT_SESSION_ID}`, which Stripe replaces with the real session id — pass
+   * that back to `retrieveSession` to confirm the payment.
+   */
+  successUrl?: string
+  cancelUrl?: string
+  /** Pre-fills the email field on the checkout page. */
+  customerEmail?: string
+  /** Extra metadata, echoed back on the session and on webhook events. */
+  metadata?: Record<string, string>
+  /**
+   * Session expiry, as a unix time in seconds or a Date. Stripe only accepts
+   * between 30 minutes and 24 hours from now; omit it for Stripe's 24h default.
+   */
+  expiresAt?: number | Date
+  /** Defaults to one derived from `clientReferenceId`. */
+  idempotencyKey?: string
+}
+
+export interface FuncStripeCheckoutSession {
+  /** Checkout Session id (`cs_...`). */
+  id: string
+  /** Stripe-hosted checkout URL; send the browser to it. */
+  url: string
+  clientReferenceId: string
+  /** The amount Stripe recorded, in the smallest currency unit. */
+  amountTotal: number
+  currency: string
+  /** Unix seconds. */
+  expiresAt: number
+  livemode: boolean
+  provider: string
+}
+
+/** A Checkout Session read back from Stripe. */
+export interface FuncStripeSession {
+  id: string
+  /** `open` | `complete` | `expired`. */
+  status: string
+  /** `paid` | `unpaid` | `no_payment_required`. */
+  paymentStatus: string
+  /** Compare it with your own order before fulfilling. */
+  amountTotal: number
+  currency: string
+  /** The order id you passed to `checkoutSession`. */
+  clientReferenceId: string
+  /** What the buyer typed on the checkout page, else what you pre-filled. */
+  customerEmail: string
+  /** Store it: refund events are matched by payment intent. */
+  paymentIntentId: string
+  metadata: Record<string, string>
+  /** Unix seconds. */
+  expiresAt: number
+  livemode: boolean
+  /**
+   * `status === "complete" && paymentStatus === "paid"`, computed by the platform
+   * so you never check only one half of it.
+   */
+  paid: boolean
+  /** The full Stripe object, for fields not listed above. */
+  session: Record<string, unknown>
+}
+
+/** A webhook event whose signature has been verified. */
+export interface FuncStripeEvent {
+  /** Event id — use it as the key of your own de-duplication table. */
+  id: string
+  /** e.g. `checkout.session.completed`, `charge.refunded`. */
+  type: string
+  /** Unix seconds. */
+  created: number
+  apiVersion: string
+  livemode: boolean
+  /** `event.data.object` — what you read in almost every handler. */
+  object: Record<string, unknown>
+  /** The whole event, for `data.previous_attributes` and friends. */
+  event: Record<string, unknown>
+}
+
+/** The Stripe methods, bound to one payment channel. */
+export interface FuncStripeChannel {
+  /**
+   * Creates a one-off Checkout Session and returns its hosted URL.
+   *
+   * Subscriptions and dashboard-defined prices are not covered here — use `call`
+   * for those; the secret key still never enters Func.
+   */
+  checkoutSession(input: FuncStripeCheckoutSessionInput): FuncStripeCheckoutSession
+  /**
+   * Reads a Checkout Session back from Stripe, checking that it really is one and
+   * that its mode matches this integration.
+   *
+   * This is how you confirm a payment right after the buyer lands on `successUrl`:
+   * the `session_id` in the query string is attacker-controlled, but a session
+   * fetched with your secret key can only belong to your own account. You still
+   * have to check that `clientReferenceId` is *this user's* order.
+   */
+  retrieveSession(sessionId: string): FuncStripeSession
+  /**
+   * Verifies a webhook: HMAC-SHA256 over the raw body, a 5-minute timestamp
+   * tolerance, and the event's `livemode` against this integration.
+   *
+   * Pass the **raw** body (`await ctx.request.text()`); `JSON.stringify(input)`
+   * breaks the signature. The `Stripe-Signature` header is read by the platform, so
+   * you neither pass it nor get it wrong. Any failure **throws** rather than
+   * returning a value you could mistake for falsy, so a forged event never reaches
+   * your code — return a non-2xx and Stripe will retry.
+   *
+   * Events can arrive more than once and out of order: de-duplicate on `id` in
+   * your own table.
+   */
+  verifyWebhook(rawBody: string): FuncStripeEvent
+  /**
+   * Calls any other Stripe API (refunds, subscriptions, charges, …) with the
+   * integration's secret key. Params are expanded Stripe-style, so nested objects
+   * and arrays work: `{ a: { b: [1] } }` becomes `a[b][0]=1`.
+   */
+  call<T = Record<string, unknown>>(
+    method: 'GET' | 'POST' | 'DELETE',
+    path: string,
+    params?: Record<string, unknown>,
+    idempotencyKey?: string,
+  ): T
+}
+
+/**
+ * Stripe capability, available once a Stripe integration is connected for the
+ * project. The secret key and the webhook signing secret stay on the server: Func
+ * code never holds them, and signing and webhook verification happen server-side.
+ *
+ * `via(tag)` picks a payment channel when the project has several Stripe accounts.
+ * As with Alipay, a tag matching several payment integrations **throws** instead of
+ * picking one at random: webhook signing secrets are issued per endpoint, so an
+ * event from one account can never verify against another account's secret.
+ */
+export interface FuncStripeRuntime extends FuncStripeChannel {
+  via(tag: string): FuncStripeChannel
+}
+
 /**
  * Payment capabilities. This is a **namespace, not a unified interface**: each
- * provider keeps its own method shape, so a future `ctx.payment.stripe` will not
- * mirror `ctx.payment.alipay`. Payment providers are not isomorphic, and pretending
- * otherwise would only produce a leaky abstraction.
+ * provider keeps its own method shape. `ctx.payment.stripe` deliberately does not
+ * mirror `ctx.payment.alipay` — one signs a form and waits for an async
+ * notification, the other creates a Session and reconciles on return plus webhook.
+ * Payment providers are not isomorphic, and pretending otherwise would only
+ * produce a leaky abstraction.
  *
  * The platform owns cryptography and credentials; your code owns money and goods —
  * amounts must come from a server-side product table, and the order table, amount
@@ -451,6 +617,7 @@ export interface FuncAlipayRuntime extends FuncAlipayChannel {
  */
 export interface FuncPaymentRuntime {
   alipay: FuncAlipayRuntime
+  stripe: FuncStripeRuntime
 }
 
 export interface FuncReadonlyStringMap {
