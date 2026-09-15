@@ -783,6 +783,193 @@ export interface FuncPaymentRuntime {
   stripe: FuncStripeRuntime
 }
 
+/** One message in a chat request. */
+export interface FuncAIMessage {
+  role: "system" | "user" | "assistant" | "tool" | (string & {})
+  content: string
+  /** Set when replying to a tool call, so the model can match it up. */
+  tool_call_id?: string
+  name?: string
+}
+
+/** An OpenAI-shaped tool definition, passed through to the upstream untouched. */
+export interface FuncAITool {
+  type: "function" | (string & {})
+  function: {
+    name: string
+    description?: string
+    /** JSON Schema for the arguments. */
+    parameters?: Record<string, unknown>
+    strict?: boolean
+  }
+  [key: string]: unknown
+}
+
+export type FuncAIToolChoice =
+  | "auto"
+  | "none"
+  | "required"
+  | { type: "function"; function: { name: string } }
+
+export interface FuncAIChatParams {
+  messages: FuncAIMessage[]
+  /** Falls back to the model configured on the integration. */
+  model?: string
+  temperature?: number
+  maxTokens?: number
+  /**
+   * Ask the platform to strip the markdown code fence the model loves to wrap
+   * JSON in, then `JSON.parse` what is left into `data`. It **only** controls
+   * parsing on our side: no `response_format` is added to the request, because
+   * gateways differ on which fields they accept and one unknown field is a 400.
+   * Getting the model to emit JSON is still the prompt's job.
+   */
+  json?: boolean
+  /**
+   * Tool definitions. The platform sends them upstream and hands `toolCalls`
+   * back; it does **not** run the loop. Executing the tool, appending the result
+   * to `messages` and calling again is your code — that part is an agent
+   * runtime, with its own stopping rule and permission model.
+   */
+  tools?: FuncAITool[]
+  toolChoice?: FuncAIToolChoice
+  /**
+   * Escape hatch: merged into the request body as-is (`top_p`, `seed`,
+   * `response_format`, whatever the gateway takes). `messages` wins over it, so
+   * `extra` can add any field but cannot break the message structure.
+   */
+  extra?: Record<string, unknown>
+}
+
+export interface FuncAIToolCall {
+  id: string
+  name: string
+  /**
+   * Already parsed. The raw OpenAI response carries `arguments` as a **JSON
+   * string**, and the failure mode of forgetting `JSON.parse` is
+   * `args.city === undefined` with no error anywhere, so the platform parses it
+   * for you. When the model emits broken JSON this is `undefined` and the text
+   * is still in `argumentsRaw`.
+   */
+  arguments?: Record<string, unknown>
+  argumentsRaw: string
+}
+
+export interface FuncAIChatResult {
+  /** Empty when the model answered with tool calls only. That is not an error. */
+  content: string
+  model: string
+  finishReason: string
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
+  /** Set only when `json: true` was requested. */
+  data?: Record<string, unknown>
+  /** Set only when the model asked for a tool. */
+  toolCalls?: FuncAIToolCall[]
+}
+
+/** The AI methods, bound to one channel. */
+export interface FuncAIChannel {
+  /**
+   * One chat completion. Synchronous, no token streaming: a Func returns one
+   * value, and `ctx.sse` is there if a site wants to stream something itself.
+   */
+  chat(params: FuncAIChatParams): FuncAIChatResult
+  /**
+   * Escape hatch for everything that is not chat (`/embeddings`,
+   * `/audio/transcriptions`…). The body goes up as-is and the upstream JSON
+   * comes back as-is; the API key still never enters the sandbox.
+   */
+  call<T = any>(path: string, body?: Record<string, unknown>): T
+}
+
+/**
+ * OpenAI-compatible chat, available once an OpenAI integration is connected.
+ * The API key stays on the server and never reaches Func code; pointing the
+ * integration's base URL at another compatible gateway switches provider
+ * without touching site code.
+ *
+ * `via(tag)` picks a channel when the project has several AI integrations, e.g.
+ * a cheap model for classification and a strong one for writing.
+ */
+export interface FuncOpenAIRuntime extends FuncAIChannel {
+  via(tag: string): FuncAIChannel
+}
+
+/**
+ * AI capabilities. Like `ctx.payment`, this is a **namespace, not a unified
+ * interface**: the provider name stays in the path. A capability-level
+ * `ctx.ai.chat` was considered and rejected, because `call("/embeddings")` is
+ * already OpenAI-shaped, so the abstraction leaks the moment anyone uses it.
+ */
+export interface FuncAIRuntime {
+  openai: FuncOpenAIRuntime
+}
+
+export interface FuncTTSSpeakParams {
+  /**
+   * Plain text, **not SSML**. The platform escapes it and builds the SSML,
+   * because this text is usually user input and the consequence of not escaping
+   * is not a crash but injection: `</voice><voice name='...'>` swaps the voice.
+   */
+  text: string
+  /** Falls back to the voice configured on the integration. */
+  voice?: string
+  /** e.g. `audio-24khz-48kbitrate-mono-mp3`. */
+  format?: string
+  language?: string
+  /** `+10%`, `-20%`, `1.2`, `slow`… validated against a whitelist. */
+  rate?: string
+  /** `+10%`, `-2st`… validated against a whitelist. */
+  pitch?: string
+  /** e.g. `cheerful`, `newscast-casual`. */
+  style?: string
+  styleDegree?: number | string
+  /**
+   * Store the audio in the project's own OSS and return `fileUrl`. Recommended:
+   * without it the audio has to travel through the sandbox as base64 and be
+   * uploaded again with `ctx.assets`.
+   */
+  upload?: boolean
+  /** Only used with `upload`. Defaults to a content hash. */
+  filename?: string
+}
+
+export interface FuncTTSSpeakResult {
+  /** Set when `upload` was not requested. */
+  audioBase64?: string
+  /** Set when `upload: true`. */
+  fileUrl?: string
+  mimeType: string
+  bytes: number
+  voice: string
+  format: string
+  provider: string
+}
+
+/** The TTS methods, bound to one channel. */
+export interface FuncTTSChannel {
+  /** Synthesise speech. A bare string is accepted for the common case. */
+  speak(params: FuncTTSSpeakParams | string): FuncTTSSpeakResult
+}
+
+/**
+ * Azure (Microsoft) text to speech. The subscription key stays on the server.
+ *
+ * The platform does **not** cache or deduplicate: the same sentence twice costs
+ * twice. Only the site knows what counts as "the same" (does the voice matter?
+ * the rate?), so keep your own `text hash -> fileUrl` table if you need one.
+ */
+export interface FuncAzureTTSRuntime extends FuncTTSChannel {
+  via(tag: string): FuncTTSChannel
+}
+
+/** Text-to-speech capabilities. A namespace, like `ctx.ai` and `ctx.payment`. */
+export interface FuncTTSRuntime {
+  azure: FuncAzureTTSRuntime
+}
+
 export interface FuncReadonlyStringMap {
   get(name: string): string | null
 }
@@ -883,6 +1070,8 @@ export interface TalizenFuncContext {
   cache: FuncCacheRuntime
   email: FuncEmailRuntime
   payment: FuncPaymentRuntime
+  ai: FuncAIRuntime
+  tts: FuncTTSRuntime
   cookies: FuncCookieRuntime
   sse: FuncSSERuntime
 }
