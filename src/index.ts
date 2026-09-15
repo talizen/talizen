@@ -441,6 +441,65 @@ export type SitemapFile = () =>
   | Promise<Array<SitemapEntry>>
 
 /**
+ * One item returned by `generateStaticParams`: the **route params**, plus
+ * optional sitemap metadata.
+ *
+ * Route params are the bracketed segments of the filename.
+ * `page/blog/[slug].tsx` needs `{ slug: "..." }`;
+ * `page/docs/[category]/[slug].tsx` needs both.
+ *
+ * The metadata is a platform extension (Next.js `generateStaticParams` returns
+ * route params only), because this platform **builds the sitemap by scanning
+ * routes**, and there is nowhere else to state a per-URL timestamp.
+ */
+export type StaticParamsEntry = Record<string, string | number> & {
+  /**
+   * When this URL's content last changed. Pass the CMS record's `updated_at`.
+   *
+   * **Leaving it out**: every URL this route expands to shares one `lastmod`,
+   * the page file's own modification date, to the day. Editing an article then
+   * never changes it, so crawlers are never told to come back.
+   *
+   * `lastmod` is accepted as an alias, but prefer this spelling: it matches
+   * `SitemapEntry` and Next.js.
+   */
+  lastModified?: string | Date
+  /** `changefreq` is accepted as an alias. */
+  changeFrequency?: SitemapChangeFrequency
+  /** `0` to `1`. */
+  priority?: number | string
+}
+
+/**
+ * Signature of `generateStaticParams`. **A page file with `[param]` in its name
+ * must export it**, unless the site provides `/sitemap.ts`.
+ *
+ * Leaving it out fails silently: **not one URL from that route reaches the
+ * sitemap**, while `sitemap.xml` still returns 200 with the home page and the
+ * static routes in it. Nothing errors and nothing logs. Search engines never
+ * find the detail pages, and static HTML export ships a package without them,
+ * because the export decides what to render from the sitemap.
+ *
+ * ```ts
+ * import { listContents } from "talizen/cms"
+ * import type { GenerateStaticParams } from "talizen"
+ *
+ * export const generateStaticParams: GenerateStaticParams = async () => {
+ *   const res = await listContents("api_docs", { limit: 100, offset: 0 })
+ *   return (res?.list ?? [])
+ *     .filter((item) => item.slug)
+ *     .map((item) => ({ slug: item.slug, lastModified: item.updated_at }))
+ * }
+ * ```
+ *
+ * Paginate when a collection holds more items than one request returns. Items
+ * you do not fetch are not reported as missing, they are simply absent.
+ */
+export type GenerateStaticParams<Entry extends StaticParamsEntry = StaticParamsEntry> = () =>
+  | Promise<Entry[]>
+  | Entry[]
+
+/**
  * One `robots.txt` rule group, aligned with Next.js `MetadataRoute.Robots`.
  */
 export interface RobotsRule {
