@@ -785,10 +785,21 @@ export interface FuncPaymentRuntime {
 
 /** One message in a chat request. */
 export interface FuncAIMessage {
-  role: "system" | "user" | "assistant" | "tool" | (string & {})
-  content: string
-  /** Set when replying to a tool call, so the model can match it up. */
+  role: "system" | "user" | "assistant" | "developer" | "tool" | (string & {})
+  /** May be empty only on an assistant message that carries `toolCalls`. */
+  content?: string
+  /**
+   * Required on a `tool` message: the id of the tool call being answered.
+   * `toolCallId` is accepted too, since that is the spelling the result uses.
+   */
   tool_call_id?: string
+  toolCallId?: string
+  /**
+   * Only on an `assistant` message, replaying what the model asked for last
+   * round. Without it the provider rejects the `tool` message that follows.
+   */
+  tool_calls?: unknown[]
+  toolCalls?: unknown[]
   name?: string
 }
 
@@ -869,6 +880,54 @@ export interface FuncAIChatResult {
   toolCalls?: FuncAIToolCall[]
 }
 
+export interface FuncAIImageParams {
+  prompt: string
+  /**
+   * Defaults to `gpt-image-1`. It deliberately does **not** fall back to the
+   * chat model configured on the integration: those are different things, and
+   * sending a chat model here only earns an opaque 400.
+   */
+  model?: string
+  /** e.g. `1024x1024`, `1536x1024`. */
+  size?: string
+  /** `low` | `medium` | `high` (gpt-image-1), `standard` | `hd` (dall-e-3). */
+  quality?: string
+  /** dall-e-3 only: `vivid` | `natural`. */
+  style?: string
+  /** gpt-image-1 only: `transparent` | `opaque` | `auto`. */
+  background?: string
+  /** How many images, 1 to 4. Each one costs money. */
+  n?: number
+  /**
+   * Store the images in the project's own OSS and return permanent `fileUrl`s.
+   * Recommended: otherwise a 1024x1024 PNG crosses the sandbox as a ~2MB base64
+   * string, against the same heap and CPU budget your code runs in.
+   */
+  upload?: boolean
+  /** Only used with `upload`. Defaults to a content hash; with n > 1 the second
+   *  image onwards gets a numbered suffix so they cannot overwrite each other. */
+  filename?: string
+  /** Escape hatch, merged into the request body as-is. */
+  extra?: Record<string, unknown>
+}
+
+export interface FuncAIImage {
+  /** Set when `upload` was not requested. */
+  imageBase64?: string
+  /** Set when `upload: true`. A permanent URL, never an expiring one. */
+  fileUrl?: string
+  /** Sniffed from the actual bytes, not from the requested format. */
+  mimeType: string
+  bytes: number
+  /** dall-e-3 rewrites the prompt and reports what it actually drew. */
+  revisedPrompt?: string
+}
+
+export interface FuncAIImageResult {
+  model: string
+  images: FuncAIImage[]
+}
+
 /** The AI methods, bound to one channel. */
 export interface FuncAIChannel {
   /**
@@ -876,6 +935,19 @@ export interface FuncAIChannel {
    * value, and `ctx.sse` is there if a site wants to stream something itself.
    */
   chat(params: FuncAIChatParams): FuncAIChatResult
+  /**
+   * Generate images. A bare string is accepted for the common case.
+   *
+   * The platform always asks the provider for image **bytes**, never a URL, and
+   * hands back either a permanent OSS link (`upload: true`) or base64. This is
+   * the whole reason the method exists: the URL OpenAI returns directly expires
+   * after about an hour, so storing it in a database works in testing and then
+   * turns every image into a 404 in production, with no error anywhere.
+   *
+   * Image generation takes tens of seconds. Raise the Func timeout with
+   * `export const config = { timeoutMs: 120000 }`.
+   */
+  image(params: FuncAIImageParams | string): FuncAIImageResult
   /**
    * Escape hatch for everything that is not chat (`/embeddings`,
    * `/audio/transcriptions`…). The body goes up as-is and the upstream JSON
