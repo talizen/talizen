@@ -1046,11 +1046,25 @@ export interface FuncReadonlyStringMap {
   get(name: string): string | null
 }
 
+/** Read-only subset of `URLSearchParams`, parsed from `ctx.request.url`. */
+export interface FuncRequestQuery {
+  /** First value of the parameter, or `null` when absent. Values are already URL-decoded. */
+  get(name: string): string | null
+  /** Every value of the parameter, in order; an empty array when absent. */
+  getAll(name: string): string[]
+  has(name: string): boolean
+}
+
 export interface FuncRequestRuntime {
   host: string
   ip: string
   method: string
+  /** Path only, without the query string, e.g. `/func/leads_hook`. */
   path: string
+  /** Full request URL including the query string, like Fetch `Request.url`. */
+  url: string
+  /** Query parameters of `url`, e.g. `ctx.request.query.get("k")`. */
+  query: FuncRequestQuery
   headers: FuncReadonlyStringMap
   cookies: FuncReadonlyStringMap
   readonly bodyUsed: boolean
