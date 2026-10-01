@@ -210,6 +210,39 @@ export async function requestJson<T>(
   return JSON.parse(text) as T
 }
 
+/**
+ * Like requestJson but hands back the raw Response without reading or checking
+ * it, for callers that consume a stream (SSE). The caller handles non-2xx.
+ */
+export async function requestRaw(
+  path: string,
+  init?: RequestInit,
+  config?: TalizenRequestOptions,
+): Promise<{ response: Response; request: TalizenErrorRequest }> {
+  const resolved = resolveTalizenConfig(config)
+  const headers = new Headers(resolved.headers ?? {})
+  if (init?.headers) {
+    new Headers(init.headers).forEach((value, key) => {
+      headers.set(key, value)
+    })
+  }
+  if (init?.body != null && !headers.has("content-type")) {
+    headers.set("content-type", "application/json")
+  }
+  const requestUrl = buildTalizenUrl(path, resolved)
+  const response = await resolved.fetch(requestUrl, {
+    ...init,
+    headers,
+    signal: resolved.signal,
+  })
+  return {
+    response,
+    request: { method: normalizeRequestMethod(init?.method), url: stripUrlQuery(requestUrl) },
+  }
+}
+
+export { parseTalizenErrorBody }
+
 export function stripUrlQuery(url: string): string {
   try {
     const parsed = new URL(url)
