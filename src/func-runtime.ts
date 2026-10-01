@@ -1244,6 +1244,34 @@ export interface FuncMemberRuntime {
  */
 export type FuncMCPRuntime = (server: "creght", tool: string, args?: Record<string, unknown>) => Promise<any>
 
+export interface FuncShuttleMachine {
+  id: string
+  name: string
+  /** RFC3339 */
+  connected_at: string
+}
+
+/**
+ * Reaches Shuttle on the project owner's own computer (browser sessions, local
+ * keys). Owner only: the visitor must be the project owner signed in at
+ * `/auth/member/login`, or the owner previewing in the editor.
+ */
+export interface FuncShuttleRuntime {
+  /**
+   * Runs `fn` on the owner's most recently connected computer that has this
+   * project open, and resolves to the value it returns. Rejects with an error
+   * whose message starts with `shuttle_offline`, `shuttle_timeout` (Shuttle is
+   * told to cancel), `shuttle_canceled`, `shuttle_error` (Shuttle's own failure)
+   * or `shuttle_owner_required`. Nothing is queued when no computer is online.
+   *
+   * `timeoutMs` defaults to 60000 and caps at 300000; the Func's own
+   * `config.timeoutMs` must leave room for it.
+   */
+  call<T = any>(fn: string, input?: unknown, options?: { timeoutMs?: number }): Promise<T>
+  /** The owner's computers that are online with this project open. */
+  online(): { online: boolean; machines: FuncShuttleMachine[] }
+}
+
 export interface TalizenFuncContext {
   trace_id: string
   extra?: Record<string, unknown>
@@ -1254,6 +1282,7 @@ export interface TalizenFuncContext {
   /** The visitor as a member of this site's creght project. */
   member: FuncMemberRuntime
   mcp: FuncMCPRuntime
+  shuttle: FuncShuttleRuntime
   users: FuncUsersRuntime
   verify: FuncVerifyRuntime
   assets: FuncAssetsRuntime
