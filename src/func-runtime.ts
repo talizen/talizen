@@ -29,6 +29,11 @@ export interface DbFilter {
 }
 
 export interface DbQuery {
+  /**
+   * Equality on top-level body fields. `id` matches the record id (the `id` every
+   * returned row carries); write `body.id` for an id field you stored yourself.
+   * The same goes for `fieldId: "id"` in `filter` (eq / neq / in only).
+   */
   where?: Record<string, unknown>
   filter?: DbFilter
   /** Default 20, maximum 1000. A larger value is clamped silently. */
@@ -45,10 +50,23 @@ export interface DbQuery {
    * **silently**, leaving the query on its default ordering.
    */
   orderBy?: DbOrderBy
+  /**
+   * Keyset paging by id, for reading a whole table: pass `""` for the first page,
+   * then the previous page's `next_cursor`, until it comes back empty. Requires
+   * `order_by: "id asc"`.
+   */
+  cursor?: string
 }
 
 export type DbRecord<T extends Record<string, unknown> = Record<string, unknown>> = T & {
   id: string
+  /**
+   * Set on insert when missing; filled from the record's system time on read.
+   * UTC with milliseconds, same as `Date.toISOString()`.
+   */
+  created_at?: string
+  /** Refreshed on every insert and update; filled from the system time on read. */
+  updated_at?: string
 }
 
 export interface DbQueryResult<T extends Record<string, unknown> = Record<string, unknown>> {
@@ -60,6 +78,42 @@ export interface DbQueryResult<T extends Record<string, unknown> = Record<string
    * way to notice the result was truncated.
    */
   limit: number
+  /**
+   * Only when `cursor` was passed: hand it to the next call. Empty string once the
+   * table is exhausted (this page was not full). `total` then counts the rows
+   * from the cursor on.
+   */
+  next_cursor?: string
+}
+
+/** Same request as the `record_aggregate` API. */
+export interface DbAggregateQuery {
+  where?: Record<string, unknown>
+  filter?: DbFilter
+  /**
+   * Body fields (or the system columns `created_at` / `updated_at`). A string is
+   * `{ field }`; `trunc` buckets a time into day / week / month / year.
+   */
+  group_by?: Array<string | { field: string; trunc?: "day" | "week" | "month" | "year"; as?: string }>
+  metrics?: Array<{
+    op: "count" | "sum" | "avg" | "min" | "max" | "first" | "last"
+    field?: string
+    as?: string
+    /** first / last only: which field orders the group. Defaults to created_at. */
+    order_by?: string
+  }>
+  /** Over output columns, e.g. `"views desc"`. Defaults to the group-by fields. */
+  order_by?: string
+  limit?: number
+  /** IANA name used for `trunc`, e.g. `"Asia/Shanghai"`. */
+  timezone?: string
+}
+
+export interface DbAggregateResult<T extends Record<string, unknown> = Record<string, unknown>> {
+  list: T[]
+  limit: number
+  /** True when the row count reached `limit`: narrow the filter or raise the limit. */
+  truncated: boolean
 }
 
 export interface FuncDbRuntime {
@@ -71,6 +125,10 @@ export interface FuncDbRuntime {
     table: string,
     query?: DbQuery,
   ): DbQueryResult<T>
+  aggregate<T extends Record<string, unknown> = Record<string, unknown>>(
+    table: string,
+    query: DbAggregateQuery,
+  ): DbAggregateResult<T>
   insert<T extends Record<string, unknown> = Record<string, unknown>>(
     table: string,
     data: T,
