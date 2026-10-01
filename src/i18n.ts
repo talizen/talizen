@@ -165,8 +165,21 @@ function lookupMessage(obj: Record<string, unknown>, path: string): unknown {
   return cur
 }
 
-/** 翻译函数：按 key 取文案（支持点路径），`{var}` 插值；缺失时返回 key 本身。 */
-export type Translator = (key: string, vars?: Record<string, unknown>) => string
+/**
+ * 翻译函数：按 key 取文案（支持点路径），`{var}` 插值；缺失时返回 key 本身。
+ * 取到的不是字符串（数组 / 对象）也返回 key 本身——这类文案用 `t.raw`。
+ */
+export type Translator = ((key: string, vars?: Record<string, unknown>) => string) & {
+  /**
+   * 原样取 messages 里的值，不插值（对齐 next-intl 的 `t.raw`）。用于数组、对象这类成组文案；
+   * key 不存在时返回 `undefined`。
+   *
+   * ```tsx
+   * const items = t.raw<{ title: string; desc: string }[]>("features.items") ?? []
+   * ```
+   */
+  raw<T = unknown>(key: string): T | undefined
+}
 
 /**
  * 读取 UI 文案翻译器。`namespace` 可将后续 key 限定到 messages 的某个子树（对齐 next-intl）。
@@ -175,6 +188,7 @@ export type Translator = (key: string, vars?: Record<string, unknown>) => string
  * const t = useTranslations("home")
  * t("title")                    // messages.home.title
  * t("greeting", { name })       // "你好 {name}" -> "你好 小明"
+ * t.raw<string[]>("tags") ?? [] // 数组 / 对象原样取出
  * ```
  *
  * UI chrome 用 useTranslations；文章等内容用 CMS 字段级 _i18n（见 listContents/getContent）。
@@ -183,12 +197,14 @@ function buildTranslator(namespace?: string, sourceMessages?: Record<string, unk
   const messages = sourceMessages ?? readMessages()
   const scoped = namespace ? lookupMessage(messages, namespace) : messages
   const base = (scoped && typeof scoped === "object" ? scoped : {}) as Record<string, unknown>
-  return (key, vars) => {
+  const t = (key: string, vars?: Record<string, unknown>) => {
     const raw = lookupMessage(base, key)
     const text = typeof raw === "string" ? raw : key
     if (!vars) return text
     return text.replace(/\{(\w+)\}/g, (_, k: string) => (k in vars ? String(vars[k]) : `{${k}}`))
   }
+  t.raw = <T = unknown>(key: string) => lookupMessage(base, key) as T | undefined
+  return t
 }
 
 export function useTranslations(namespace?: string): Translator {
