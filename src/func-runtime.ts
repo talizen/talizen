@@ -1267,17 +1267,12 @@ export interface FuncShuttleRuntime {
    * `timeoutMs` defaults to 60000 and caps at 300000; the Func's own
    * `config.timeoutMs` must leave room for it.
    *
-   * Progress: Shuttle's `{ done, total, message }` updates go to `onProgress`
-   * when given. Without it, and when the page called with
-   * `invoke(..., { onEvent })` (a streaming run), each one is forwarded to the
-   * page as an SSE event `progress` automatically. Progress can be dropped under
-   * load; the result and error never are.
+   * Progress: when the page called with `invoke(..., { onEvent })` (a
+   * streaming run), each of Shuttle's `{ done, total, message }` updates is
+   * forwarded to the page as an SSE event `progress` automatically. Progress
+   * can be dropped under load; the result and error never are.
    */
-  call<T = any>(
-    fn: string,
-    input?: unknown,
-    options?: { timeoutMs?: number; onProgress?: (data: any) => void },
-  ): Promise<T>
+  call<T = any>(fn: string, input?: unknown, options?: { timeoutMs?: number }): Promise<T>
   /** The owner's computers that are online with this project open. */
   online(): { online: boolean; machines: FuncShuttleMachine[] }
 }
