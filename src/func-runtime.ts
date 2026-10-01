@@ -466,6 +466,12 @@ export interface FuncConfig {
    * being ignored. The platform still caps it at its own maximum.
    */
   timeoutMs?: number
+  /**
+   * Keeps this Func open to everyone when the project has "Funcs for members
+   * only" switched on — form webhooks and payment callbacks, which check their
+   * own signature. Has no effect when the switch is off.
+   */
+  public?: boolean
 }
 
 export interface FuncStripeCheckoutSessionInput {
@@ -1113,6 +1119,11 @@ export type ResponseInit = FuncHTTPResponseInit
 
 export interface FuncCookieSetOptions {
   path?: string
+  /**
+   * Ignored: cookies set by a Func are always host-only. Free and preview site
+   * domains share a root domain with the platform, so honoring `domain` would let
+   * any site set cookies for every other site and for the platform itself.
+   */
   domain?: string
   maxAge?: number
   secure?: boolean
@@ -1143,6 +1154,38 @@ export interface FuncSSERuntime {
   send<T = unknown>(event: FuncSSEEvent<T>): { ok: boolean }
 }
 
+/**
+ * A member of the creght project this site belongs to (the owner included),
+ * signed in with their creght platform account at `/auth/member/login`.
+ * Not the same people as `ctx.auth` users, who are the site's own visitors.
+ */
+export interface FuncMember {
+  /** Platform user id, as a string: it does not fit in a JS number. */
+  user_id: string
+  name: string
+  avatar?: string
+  role: "owner" | "member"
+}
+
+export interface FuncMemberRuntime {
+  /** Null when the visitor has not signed in as a member. */
+  current(): FuncMember | null
+  /**
+   * Throws `member_login_required` (HTTP 401) when the visitor has not signed in;
+   * send them to `/auth/member/login?redirect=<path>`. With `"owner"`, a member
+   * who is not the owner gets HTTP 403.
+   */
+  require(role?: "owner"): FuncMember
+}
+
+/**
+ * Calls a tool on the creght MCP server as the project owner, with the same name
+ * and arguments as Shuttle's local `ctx.mcp`. Resolves to the tool's structured
+ * result; a tool error rejects. Only `"creght"` exists, only read tools work, and
+ * only when the visitor is the signed-in project owner.
+ */
+export type FuncMCPRuntime = (server: "creght", tool: string, args?: Record<string, unknown>) => Promise<any>
+
 export interface TalizenFuncContext {
   trace_id: string
   extra?: Record<string, unknown>
@@ -1150,6 +1193,9 @@ export interface TalizenFuncContext {
   response: FuncResponseRuntime
   db: FuncDbRuntime
   auth: FuncAuthRuntime
+  /** The visitor as a member of this site's creght project. */
+  member: FuncMemberRuntime
+  mcp: FuncMCPRuntime
   users: FuncUsersRuntime
   verify: FuncVerifyRuntime
   assets: FuncAssetsRuntime
