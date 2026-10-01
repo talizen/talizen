@@ -1249,6 +1249,12 @@ export interface FuncShuttleMachine {
   name: string
   /** RFC3339 */
   connected_at: string
+  /**
+   * Functions in this project that this computer's Shuttle accepts through
+   * `call` (the ones declaring `remote`). Empty when it reported none. Use it to
+   * decide which buttons to enable; the platform does not filter calls by it.
+   */
+  remote: string[]
 }
 
 /**
