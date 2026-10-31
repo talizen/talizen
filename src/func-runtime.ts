@@ -1283,6 +1283,145 @@ export interface FuncShuttleRuntime {
   online(): { online: boolean; machines: FuncShuttleMachine[] }
 }
 
+/** A CMS collection of this project, as listed by `ctx.cms.collections()`. */
+export interface CmsCollection {
+  key: string
+  name: string
+  desc: string
+  /** The collection's JSON Schema; `body` of every item follows it. */
+  json_schema: Record<string, unknown>
+}
+
+export interface CmsItem<T extends Record<string, unknown> = Record<string, unknown>> {
+  id: string
+  slug: string
+  status: "online" | "offline"
+  body: T
+  /** RFC3339 */
+  created_at: string
+  /** RFC3339 */
+  updated_at: string
+}
+
+export interface FuncCmsListInput {
+  status?: "online" | "offline"
+  limit?: number
+  offset?: number
+  search?: string
+}
+
+export interface FuncCmsWriteInput {
+  body?: Record<string, unknown>
+  slug?: string
+  status?: "online" | "offline"
+}
+
+/**
+ * Reads and writes this project's CMS content, reached as `ctx.cms`. Scoped to
+ * the whole project, not to the caller: like `ctx.users.query`, **every Func
+ * using it must do its own access check** before exposing or changing content.
+ *
+ * Writes go live immediately — there are no drafts. The platform clears the
+ * rendered page cache, notifies IndexNow and refreshes the editor as it does for
+ * any other content change.
+ */
+export interface FuncCmsRuntime {
+  collections(): Promise<CmsCollection[]>
+  list<T extends Record<string, unknown> = Record<string, unknown>>(
+    key: string,
+    input?: FuncCmsListInput,
+  ): Promise<{ items: CmsItem<T>[]; total: number }>
+  /** Resolves to null when there is no such item; it does not throw. */
+  get<T extends Record<string, unknown> = Record<string, unknown>>(key: string, id: string): Promise<CmsItem<T> | null>
+  /** `status` defaults to `"online"`. */
+  create<T extends Record<string, unknown> = Record<string, unknown>>(
+    key: string,
+    input: FuncCmsWriteInput & { body: Record<string, unknown> },
+  ): Promise<CmsItem<T>>
+  /** `body` is merged field by field into the stored body; omitted fields are kept. */
+  update<T extends Record<string, unknown> = Record<string, unknown>>(
+    key: string,
+    id: string,
+    input: FuncCmsWriteInput,
+  ): Promise<CmsItem<T>>
+  delete(key: string, id: string): Promise<void>
+}
+
+export interface FormSubmission<T extends Record<string, unknown> = Record<string, unknown>> {
+  id: string
+  form_key: string
+  body: T
+  /** RFC3339 */
+  created_at: string
+  /** RFC3339; null while the submission is not handled. */
+  handled_at: string | null
+  ip: string
+  /** The page the form was submitted from. */
+  form_url: string
+}
+
+/**
+ * Reads this project's form submissions (inquiries), reached as `ctx.forms`.
+ * Project-wide, so the same rule as `ctx.cms` applies: check access yourself.
+ * "Handled" is the only state a submission has.
+ */
+export interface FuncFormsRuntime {
+  list(): Promise<{ key: string; name: string; total: number; unhandled: number }[]>
+  submissions<T extends Record<string, unknown> = Record<string, unknown>>(
+    key: string,
+    input?: { limit?: number; offset?: number; handled?: boolean },
+  ): Promise<{ items: FormSubmission<T>[]; total: number }>
+  setHandled(id: string, handled: boolean): Promise<void>
+  delete(id: string): Promise<void>
+}
+
+/** A delivery console administrator: a site user listed in the platform's admin table. */
+export interface FuncDeliveryAdmin {
+  user_id: string
+  email: string
+  name: string
+  status: string
+  /** RFC3339 */
+  created_at: string
+}
+
+/** The customer site a delivery console is mounted on. */
+export interface FuncDeliverySite {
+  id: string
+  name: string
+  /** Site icon URL; empty when the site has none. */
+  icon: string
+  url: string
+}
+
+/**
+ * Present only when the Func runs on a delivery console host (the customer's
+ * back office mounted on their site, e.g. `abc123-admin.site.creght.cn`).
+ * There the Func runs in the **customer's** project: `ctx.db`, `ctx.auth`,
+ * `ctx.cms` and `ctx.forms` are theirs.
+ *
+ * The platform itself already rejects every non-`public` Func on that host with
+ * HTTP 401 `delivery_admin_required` unless the session user is an admin.
+ */
+export interface FuncDeliveryRuntime {
+  /** The current session user when they are an admin of this console, otherwise null. */
+  admin: AuthUser | null
+  /** The customer's site: show its name and icon as the console's brand. */
+  site: FuncDeliverySite
+  /** Throws `delivery_admin_required` (HTTP 401) when the caller is not an admin. */
+  requireAdmin(): AuthUser
+  /** Only an admin can call these. */
+  admins: {
+    list(): Promise<FuncDeliveryAdmin[]>
+    /**
+     * An email that is already a site user is added as is (the password is not
+     * changed); otherwise a user is created, which requires `password`.
+     */
+    add(input: { email: string; password?: string; name?: string }): Promise<FuncDeliveryAdmin>
+    remove(user_id: string): Promise<void>
+  }
+}
+
 export interface TalizenFuncContext {
   trace_id: string
   extra?: Record<string, unknown>
@@ -1304,4 +1443,10 @@ export interface TalizenFuncContext {
   tts: FuncTTSRuntime
   cookies: FuncCookieRuntime
   sse: FuncSSERuntime
+  /** CMS content of this project. */
+  cms: FuncCmsRuntime
+  /** Form submissions of this project. */
+  forms: FuncFormsRuntime
+  /** Null except on a delivery console host. */
+  delivery: FuncDeliveryRuntime | null
 }
