@@ -1420,6 +1420,35 @@ export interface FuncDeliveryRuntime {
     add(input: { email: string; password?: string; name?: string }): Promise<FuncDeliveryAdmin>
     remove(user_id: string): Promise<void>
   }
+  /**
+   * Visit stats of the customer's site (admins only). `days` counts back from
+   * today, inclusive (default 30, max 365), and is shortened to what the
+   * project's plan allows.
+   */
+  visits(input?: { days?: number }): Promise<FuncDeliveryVisits>
+}
+
+export interface FuncDeliveryVisitCount {
+  /** Page views */
+  pv: number
+  /** Unique visitors */
+  uv: number
+}
+
+export interface FuncDeliveryVisits {
+  /** Days actually covered, including today. */
+  days: number
+  /** How far back the plan lets you look; 0 means unlimited. */
+  max_days: number
+  summary: FuncDeliveryVisitCount
+  /** The period of the same length right before; null when outside the plan's window. */
+  previous: FuncDeliveryVisitCount | null
+  /** One entry per day that had visits; `day` is `YYYYMMDD`. Days without visits are missing. */
+  trend: Array<FuncDeliveryVisitCount & { day: string }>
+  /** Top pages; `key` is the visited URL. */
+  pages: Array<FuncDeliveryVisitCount & { key: string }>
+  /** Top external sources; `key` is the referrer host (e.g. `google.com`). */
+  referrers: Array<FuncDeliveryVisitCount & { key: string }>
 }
 
 export interface TalizenFuncContext {
