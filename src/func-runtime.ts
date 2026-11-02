@@ -1426,6 +1426,32 @@ export interface FuncDeliveryRuntime {
    * project's plan allows.
    */
   visits(input?: { days?: number }): Promise<FuncDeliveryVisits>
+  /**
+   * The calling admin's own access tokens, for connecting their AI tools to
+   * the console's MCP (`/func/mcp`). Both personal tokens and OAuth apps that
+   * were authorized on this site show up here; admins only see and revoke
+   * their own. Admins only.
+   */
+  tokens: {
+    list(): Promise<FuncDeliveryToken[]>
+    /** The plain token is returned only here, once. */
+    create(input: { name: string }): Promise<{ token: string; item: FuncDeliveryToken }>
+    revoke(id: string | number): Promise<void>
+  }
+}
+
+export interface FuncDeliveryToken {
+  id: number
+  /** `personal`: created by the admin; `oauth`: an app authorized through the console's OAuth. */
+  kind: "personal" | "oauth"
+  /** The admin's label, or the OAuth app's own name. */
+  name: string
+  /** Last 4 characters of a personal token. */
+  hint: string
+  client_id: string
+  /** RFC3339, null when never used. */
+  last_used_at: string | null
+  created_at: string
 }
 
 export interface FuncDeliveryVisitCount {
