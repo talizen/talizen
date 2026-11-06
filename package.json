@@ -60,6 +60,10 @@
       "types": "./i18n.d.ts",
       "import": "./i18n.js"
     },
+    "./vars": {
+      "types": "./vars.d.ts",
+      "import": "./vars.js"
+    },
     "./router": {
       "types": "./router.d.ts",
       "import": "./router.js"
