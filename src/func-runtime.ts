@@ -1317,6 +1317,26 @@ export interface FuncCmsWriteInput {
 }
 
 /**
+ * Site variables of this project, reached as `ctx.vars` — the same values pages
+ * read with `useVars()`. Like `ctx.cms`, scoped to the whole project: a Func that
+ * changes them must check who is calling (manage-page Funcs under
+ * `backend/func/_manage/` are already limited to project members by the platform).
+ *
+ * Writes go live immediately on every page; no publish. Only values can be
+ * changed here — which variables exist is defined in `/platform/vars.json`.
+ */
+export interface FuncVarsRuntime {
+  get<T extends Record<string, unknown> = Record<string, unknown>>(): Promise<{
+    schema: Record<string, unknown>
+    values: Partial<T>
+  }>
+  /** Merged key by key; `null` clears a variable. Values must match the variable's type. */
+  set<T extends Record<string, unknown> = Record<string, unknown>>(
+    values: { [K in keyof T]?: T[K] | null },
+  ): Promise<{ schema: Record<string, unknown>; values: Partial<T> }>
+}
+
+/**
  * Reads and writes this project's CMS content, reached as `ctx.cms`. Scoped to
  * the whole project, not to the caller: like `ctx.users.query`, **every Func
  * using it must do its own access check** before exposing or changing content.
@@ -1502,6 +1522,8 @@ export interface TalizenFuncContext {
   cms: FuncCmsRuntime
   /** Form submissions of this project. */
   forms: FuncFormsRuntime
+  /** Site variables of this project (the values pages read with `useVars()`). */
+  vars: FuncVarsRuntime
   /** Null except on a delivery console host. */
   delivery: FuncDeliveryRuntime | null
 }
