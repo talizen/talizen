@@ -1,6 +1,27 @@
 # talizen
 
-Talizen's frontend SDK package. It provides a small runtime client and shared types for:
+> The official SDK for sites built with **[Talizen](https://www.talizen.com)** — the AI website builder that gives you the code.
+
+## What is Talizen?
+
+[Talizen](https://www.talizen.com) is an AI website builder for people who want to own their website. Describe the site you want or import a Figma design, refine it in a visual editor or by chatting with AI, then publish in one click — or export the clean React + Tailwind source and deploy it anywhere.
+
+- **AI generation** — build full pages and sites from a prompt, then keep editing with AI.
+- **Visual editor + code view** — tweak layouts visually, or drop into the code.
+- **Figma to website** — import Figma designs into an editable, live site.
+- **Own your code** — export HTML, CSS or React and host it on Vercel, Netlify or your own server. No lock-in.
+- **Built-in CMS and forms** — let non-developers update content and collect leads.
+- **Built-in backend** — database, server functions, user sign-in (email, Google, GitHub), Stripe and Alipay payments, email via Resend.
+- **SEO and AI-search ready** — server-rendered pages, sitemap, metadata, Markdown page versions and `llms.txt` out of the box.
+- **Simple pricing** — free plan; Pro is $12/month and covers custom domains on up to 3 sites (about $4 per site).
+
+**Links:** [Website](https://www.talizen.com) · [Pricing](https://www.talizen.com/pricing) · [Templates](https://www.talizen.com/templates) · [Help Center](https://www.talizen.com/docs/start) · [API for AI agents](https://www.talizen.com/api) · [Discord](https://discord.gg/yU2Bs23zfT)
+
+**Compare:** [Talizen vs Framer](https://www.talizen.com/vs/framer) · [Talizen vs Webflow](https://www.talizen.com/vs/webflow) · [Talizen vs Lovable](https://www.talizen.com/vs/lovable)
+
+## About this package
+
+This package is Talizen's frontend SDK. It provides a small runtime client and shared types for:
 
 - `talizen/core`
 - `talizen/auth`
@@ -23,7 +44,7 @@ or use esm.sh
 ```
 {
   "imports": {
-    "talizen": "https://esm.sh/talizen@0.1.4"
+    "talizen": "https://esm.sh/talizen@0.1.4",
     "talizen/": "https://esm.sh/talizen@0.1.4/"
   }
 }
