@@ -1,5 +1,6 @@
 import * as React from "react"
 import { getTalizenConfig, subscribeTalizenConfig, type TalizenLocaleRuntime } from "./core.js"
+import { getPathname } from "./router.js"
 
 /**
  * 当前语言运行时信息。由 Talizen 渲染引擎写入 TalizenConfig.i18n
@@ -120,6 +121,29 @@ export type LinkProps = React.AnchorHTMLAttributes<HTMLAnchorElement> & {
   locale?: string
 }
 
+function readLocationSuffix(): string {
+  return typeof window !== "undefined" && window.location ? window.location.search + window.location.hash : ""
+}
+
+function readServerLocationSuffix(): string {
+  return ""
+}
+
+function subscribeLocation(listener: () => void): () => void {
+  if (typeof window === "undefined") return () => {}
+  window.addEventListener("popstate", listener)
+  window.addEventListener("hashchange", listener)
+  return () => {
+    window.removeEventListener("popstate", listener)
+    window.removeEventListener("hashchange", listener)
+  }
+}
+
+function sameLocalePath(a: string, b: string): boolean {
+  const norm = (p: string) => (p.length > 1 ? p.replace(/\/+$/, "") : p) || "/"
+  return norm(a) === norm(b)
+}
+
 /**
  * 语言感知的站内链接，替代裸 `<a>`：自动给 `href` 补当前语言前缀（默认语言不补）。
  * 传 `locale` 表示语言切换（用该语言前缀，且点击时写 `CREGHT_LOCALE` 记住选择）。
@@ -132,7 +156,11 @@ export type LinkProps = React.AnchorHTMLAttributes<HTMLAnchorElement> & {
 export function Link(props: LinkProps): React.ReactElement {
   const { href, locale, onClick, ...rest } = props
   useLocale()
-  const finalHref = localizedPath(href, locale)
+  const suffix = React.useSyncExternalStore(subscribeLocation, readLocationSuffix, readServerLocationSuffix)
+  // 切到另一种语言看「同一页」时保留当前的 query / hash（getLocalePath() 只给路径）。
+  // SSR 拿不到 query，水合时 suffix 取服务端快照 ""，水合完成后才补上，两边 href 一致。
+  const keepQuery = locale !== undefined && !/[?#]/.test(href) && sameLocalePath(href, getPathname())
+  const finalHref = localizedPath(href, locale) + (keepQuery ? suffix : "")
   const handleClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
     if (locale && typeof document !== "undefined") {
       document.cookie = `${LOCALE_COOKIE}=${encodeURIComponent(locale)}; path=/; max-age=31536000; samesite=lax`

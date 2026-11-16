@@ -49,8 +49,8 @@ export function getPathname(): string {
 }
 
 /**
- * 语言切换用的 href：当前页「去前缀路径 + 保留 query/hash」，配合 i18n 的 `<Link>` 使用——
- * Link 会补上目标语言前缀并写入 `CREGHT_LOCALE` cookie 记住选择：
+ * 语言切换用的 href：当前页去掉语言前缀的路径，配合 i18n 的 `<Link locale>` 使用——
+ * Link 会补上目标语言前缀、保留当前页的 query / hash，并在点击时写入 `CREGHT_LOCALE` cookie 记住选择：
  *
  * ```tsx
  * import { Link } from "talizen"
@@ -60,12 +60,9 @@ export function getPathname(): string {
  * <Link href={getLocalePath()} locale="zh-CN">中文</Link>
  * ```
  *
- * query / hash 仅在客户端可得；SSR 期只返回路径部分。
+ * 只返回路径，SSR 与客户端一致。以前在客户端会拼上 location.search / hash，而 SSR 拿不到 query，
+ * 地址一带参数（?utm_source=…）水合就对不上（hydration mismatch）；保留 query / hash 改由 `<Link locale>` 在水合后补上。
  */
 export function getLocalePath(): string {
-  const path = readPathname()
-  if (typeof window !== "undefined" && window.location) {
-    return `${path}${window.location.search}${window.location.hash}`
-  }
-  return path
+  return readPathname()
 }
