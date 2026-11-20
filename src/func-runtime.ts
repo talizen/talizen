@@ -1236,13 +1236,65 @@ export interface FuncMemberRuntime {
   require(role?: "owner"): FuncMember
 }
 
+/** A tool listed by a remote MCP server. */
+export interface FuncMCPTool {
+  name: string
+  title?: string
+  description?: string
+  /** JSON Schema of the arguments. */
+  input_schema?: unknown
+}
+
+/** Connection state of a remote MCP server for the current visitor. */
+export interface FuncMCPStatus {
+  server: string
+  /** How the platform authenticates to the server, set in Backend → Integrations. */
+  auth: "oauth" | "token" | "none"
+  /**
+   * Whose account the OAuth token belongs to. `"project"`: the site owner
+   * authorized once in the editor and every call uses that account.
+   * `"user"`: each visitor connects their own account.
+   */
+  connect_as?: "project" | "user"
+  /** Always true for `token` / `none`; for OAuth, whether this visitor (or the project) has a token. */
+  connected: boolean
+  /** For `connect_as: "user"`: whether the visitor is signed in (site user or project member). */
+  signed_in: boolean
+  /** RFC3339; null when the token does not expire or there is none. */
+  expires_at: string | null
+  /**
+   * Where to send the visitor to connect their own account (`connect_as: "user"` only;
+   * null otherwise). Append `&redirect=<path on this site>` to come back to a page;
+   * the page gets `?mcp_connected=<server>` or `?mcp_error=<code>`.
+   */
+  authorize_url: string | null
+}
+
 /**
- * Calls a tool on the creght MCP server as the project owner, with the same name
- * and arguments as Shuttle's local `ctx.mcp`. Resolves to the tool's structured
- * result; a tool error rejects. Only `"creght"` exists, only read tools work, and
- * only when the visitor is the signed-in project owner.
+ * Calls an MCP tool and resolves to its structured result (or the parsed text);
+ * a tool error rejects. Same name and arguments as Shuttle's local `ctx.mcp`.
+ *
+ * `server` is either:
+ * - `"creght"`: the platform's own MCP, as the project owner. Only read tools
+ *   work, and only when the visitor is the signed-in project owner.
+ * - the name of an MCP server added in Backend → Integrations (e.g. `"notion"`).
+ *   The platform holds the credentials and calls the server for you; tokens never
+ *   enter the func. OAuth servers are authorized either once by the site owner in
+ *   the editor, or by each visitor (`connect_as: "user"`). When there is no usable
+ *   authorization the promise rejects with `code: "mcp_authorization_required"`:
+ *   for per-visitor servers send the visitor to `status.authorize_url`.
+ *
+ * The extra methods only work for servers added in Backend → Integrations.
  */
-export type FuncMCPRuntime = (server: "creght", tool: string, args?: Record<string, unknown>) => Promise<any>
+export interface FuncMCPRuntime {
+  (server: string, tool: string, args?: Record<string, unknown>): Promise<any>
+  /** Lists the server's tools (for the current visitor's authorization). */
+  tools(server: string): Promise<FuncMCPTool[]>
+  /** Whether the server can be called now, and where to authorize when it cannot. */
+  status(server: string): Promise<FuncMCPStatus>
+  /** Removes the current visitor's own authorization (`connect_as: "user"` only). */
+  disconnect(server: string): Promise<{ ok: true }>
+}
 
 export interface FuncShuttleMachine {
   id: string
